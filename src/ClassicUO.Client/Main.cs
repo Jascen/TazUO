@@ -500,6 +500,12 @@ namespace ClassicUO
                     case "packetlog":
 
                         PacketLogger.Default.Enabled = true;
+
+                        break;
+
+                    case "packetlog-f":
+
+                        PacketLogger.Default.Enabled = true;
                         PacketLogger.Default.CreateFile();
 
                         break;
