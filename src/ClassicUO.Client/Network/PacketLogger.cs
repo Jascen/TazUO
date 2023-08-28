@@ -22,6 +22,20 @@ namespace ClassicUO.Network
             return _logFile = new LogFile(FileSystemHelper.CreateFolderIfNotExists(CUOEnviroment.ExecutablePath, "Logs", "Network"), "packets.log");
         }
 
+        public void Log(string message)
+        {
+            if (!Enabled) return;
+
+            if (_logFile != null)
+            {
+                _logFile.Write(message);
+            }
+            else
+            {
+                Console.WriteLine(message);
+            }
+        }
+
         public void Log(Span<byte> message, bool toServer)
         {
             if (!Enabled) return;
