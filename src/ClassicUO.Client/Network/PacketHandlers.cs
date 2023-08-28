@@ -105,6 +105,8 @@ namespace ClassicUO.Network
                         break;
                     }
 
+                    PacketLogger.Default.Log($"Parsing packet: {packetID:X2} | Length: {packetlength}");
+
                     if (stream.Length < packetlength)
                     {
                         Log.Warn($"need more data ID: {packetID:X2} | off: {offset} | len: {packetlength} | stream.pos: {stream.Length}");

@@ -657,7 +657,9 @@ namespace ClassicUO.Network
         {
             lock (PacketHandlers.Handler)
             {
-                PacketHandlers.Handler.Append(data.AsSpan(0, length), true);
+                var packet = data.AsSpan(0, length);
+                PacketLogger.Default.Log($"Received plugin packet: {packet[0]:X2} with length {packet.Length}");
+                PacketHandlers.Handler.Append(packet, true);
             }
 
             return true;
@@ -667,7 +669,9 @@ namespace ClassicUO.Network
         {
             if (NetClient.Socket.IsConnected)
             {
-                NetClient.Socket.Send(data.AsSpan(0, length), true);
+                var packet = data.AsSpan(0, length);
+                PacketLogger.Default.Log($"Sending plugin packet: {packet[0]:X2} with length {packet.Length}");
+                NetClient.Socket.Send(packet, true);
             }
 
             return true;
@@ -679,7 +683,9 @@ namespace ClassicUO.Network
             {
                 lock (PacketHandlers.Handler)
                 {
-                    PacketHandlers.Handler.Append(new Span<byte>(buffer.ToPointer(), length), true);
+                    var packet = new Span<byte>(buffer.ToPointer(), length);
+                    PacketLogger.Default.Log($"Received plugin packet [new]: {packet[0]:X2} with length {packet.Length}");
+                    PacketHandlers.Handler.Append(packet, true);
                 }
             }
 
@@ -690,6 +696,8 @@ namespace ClassicUO.Network
         {
             if (buffer != IntPtr.Zero && length > 0)
             {
+                var packet = new Span<byte>(buffer.ToPointer(), length);
+                PacketLogger.Default.Log($"Received plugin packet [new]: {packet[0]:X2} with length {packet.Length}");
                 NetClient.Socket.Send(new Span<byte>((void*)buffer, length), true);
             }
 
