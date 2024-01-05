@@ -42,6 +42,7 @@ using ClassicUO.Assets;
 using ClassicUO.Renderer;
 using ClassicUO.Utility;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace ClassicUO.Game.Managers
 {
@@ -60,7 +61,7 @@ namespace ClassicUO.Game.Managers
     //    SmallLight = 9
     //}
 
-    internal enum AffixType : byte
+    public enum AffixType : byte
     {
         Append = 0x00,
         Prepend = 0x01,
@@ -72,11 +73,6 @@ namespace ClassicUO.Game.Managers
     internal static class MessageManager
     {
         public static PromptData PromptData { get; set; }
-
-        public static event EventHandler<MessageEventArgs> MessageReceived;
-
-        public static event EventHandler<MessageEventArgs> LocalizedMessageReceived;
-
 
         public static void HandleMessage
         (
@@ -97,6 +93,19 @@ namespace ClassicUO.Game.Managers
             }
 
             Profile currentProfile = ProfileManager.CurrentProfile;
+
+            EventSink.InvokeRawMessageReceived(parent, new MessageEventArgs
+                (
+                    parent,
+                    text,
+                    name,
+                    hue,
+                    type,
+                    font,
+                    textType,
+                    unicode,
+                    lang
+                ));
 
             if (currentProfile != null && currentProfile.OverrideAllFonts)
             {
@@ -206,12 +215,13 @@ namespace ClassicUO.Game.Managers
                 case MessageType.Label:
                     if(textType == TextType.OBJECT)
                     {
-                        List<GridContainer> unmodifiedList = new List<GridContainer>();
-                        foreach (GridContainer container in UIManager.Gumps.OfType<GridContainer>())
-                            unmodifiedList.Add(container);
-
-                        foreach(GridContainer container in unmodifiedList)
-                            container?.HandleObjectMessage(parent, text, hue);
+                        for (LinkedListNode<Gump> gump = UIManager.Gumps.Last; gump != null; gump = gump.Previous)
+                        {
+                            if(gump.Value is GridContainer && !gump.Value.IsDisposed)
+                            {
+                                ((GridContainer)gump.Value).HandleObjectMessage(parent, text, hue);
+                            }
+                        }
                     }
                     goto case MessageType.Limit3Spell;
                 case MessageType.Limit3Spell:
@@ -285,9 +295,7 @@ namespace ClassicUO.Game.Managers
                     }
             }
 
-            MessageReceived.Raise
-            (
-                new MessageEventArgs
+            EventSink.InvokeMessageReceived(parent, new MessageEventArgs
                 (
                     parent,
                     text,
@@ -298,14 +306,12 @@ namespace ClassicUO.Game.Managers
                     textType,
                     unicode,
                     lang
-                ),
-                parent
-            );
+                ));
         }
 
         public static void OnLocalizedMessage(Entity entity, MessageEventArgs args)
         {
-            LocalizedMessageReceived.Raise(args, entity);
+            EventSink.InvokeLocalizedMessageReceived(entity, args);
         }
 
         public static TextObject CreateMessage
@@ -356,7 +362,8 @@ namespace ClassicUO.Game.Managers
                     hue,
                     FontStashSharp.RichText.TextHorizontalAlignment.Center,
                     true
-                );
+                )
+            { AcceptMouseInput = !ProfileManager.CurrentProfile.DisableMouseInteractionOverheadText };
 
             textObject.Time = CalculateTimeToLive(textObject.TextBox);
 

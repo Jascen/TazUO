@@ -40,14 +40,13 @@ using ClassicUO.Configuration;
 
 namespace ClassicUO.Game.UI.Controls
 {
-    internal class TextBox : Control
+    public class TextBox : Control
     {
         private RichTextLayout _rtl;
         private string _font;
         private float _size;
         private Color _color;
         private TextHorizontalAlignment _align;
-        private bool _dropShadow;
         private bool _dirty = false;
 
         private int getStrokeSize
@@ -68,7 +67,10 @@ namespace ClassicUO.Game.UI.Controls
             int? width,
             int hue = 2996,
             TextHorizontalAlignment align = TextHorizontalAlignment.Left,
-            bool strokeEffect = true
+            bool strokeEffect = true,
+            bool supportsCommands = true,
+            bool ignoreColorCommands = false,
+            bool calculateGlyphs = false
         )
         {
             if (strokeEffect)
@@ -77,7 +79,10 @@ namespace ClassicUO.Game.UI.Controls
             _rtl = new RichTextLayout
             {
                 Font = TrueTypeLoader.Instance.GetFont(font, size),
-                Text = text
+                Text = text,
+                IgnoreColorCommand = ignoreColorCommands,
+                SupportsCommands = supportsCommands,
+                CalculateGlyphs = calculateGlyphs
             };
 
             if (width != null)
@@ -90,12 +95,11 @@ namespace ClassicUO.Game.UI.Controls
             if (hue == 0xFFFF || hue == ushort.MaxValue)
                 _color = Color.White;
 
-
             _align = align;
-            _dropShadow = strokeEffect;
 
-            AcceptMouseInput = false;
+            AcceptMouseInput = true;
             Width = _rtl.Width == null ? _rtl.Size.X : (int)_rtl.Width;
+            base.Height = _rtl.Size.Y;
         }
         public TextBox
             (
@@ -105,7 +109,10 @@ namespace ClassicUO.Game.UI.Controls
                 int? width,
                 Color color,
                 TextHorizontalAlignment align = TextHorizontalAlignment.Left,
-                bool strokeEffect = true
+                bool strokeEffect = true,
+                bool supportsCommands = true,
+                bool ignoreColorCommands = false,
+                bool calculateGlyphs = false
             )
         {
             if (strokeEffect)
@@ -115,6 +122,9 @@ namespace ClassicUO.Game.UI.Controls
             {
                 Font = TrueTypeLoader.Instance.GetFont(font, size),
                 Text = text,
+                IgnoreColorCommand = ignoreColorCommands,
+                SupportsCommands = supportsCommands,
+                CalculateGlyphs = calculateGlyphs
             };
             if (width != null)
                 _rtl.Width = width;
@@ -124,19 +134,41 @@ namespace ClassicUO.Game.UI.Controls
             _color = color;
 
             _align = align;
-            _dropShadow = strokeEffect;
 
-            AcceptMouseInput = false;
+            AcceptMouseInput = true;
             Width = _rtl.Width == null ? _rtl.Size.X : (int)_rtl.Width;
+            base.Height = _rtl.Size.Y;
+        }
+
+        public bool PixelCheck(int x, int y)
+        {
+            if (!AcceptMouseInput || string.IsNullOrWhiteSpace(Text))
+            {
+                return false;
+            }
+
+            if (x < 0 || x >= Width)
+            {
+                return false;
+            }
+
+            if (y < 0 || y >= Height)
+            {
+                return false;
+            }
+
+            return true;
         }
 
         public new int Height
         {
-            get {
+            get
+            {
                 if (_rtl == null)
                     return 0;
-                
-                return _rtl.Size.Y; }
+
+                return _rtl.Size.Y;
+            }
         }
 
         public Point MeasuredSize
@@ -154,8 +186,11 @@ namespace ClassicUO.Game.UI.Controls
             get => _rtl.Text;
             set
             {
-                _rtl.Text = value;
-                _dirty = true;
+                if (_rtl.Text != value)
+                {
+                    _rtl.Text = value;
+                    _dirty = true;
+                }
             }
         }
 
@@ -164,10 +199,22 @@ namespace ClassicUO.Game.UI.Controls
             get => (int)_color.PackedValue;
             set
             {
-                _color.PackedValue = (uint)value;
+                _color.PackedValue = HuesLoader.Instance.GetHueColorRgba8888(31, (ushort)value);
                 _dirty = true;
             }
         }
+
+        public Color Fontcolor
+        {
+            get => _color;
+            set
+            {
+                _color = value;
+                _dirty = true;
+            }
+        }
+
+        public RichTextLayout RTL => _rtl;
 
         public string Font
         {
@@ -190,6 +237,34 @@ namespace ClassicUO.Game.UI.Controls
             }
         }
 
+        /// <summary>
+        /// Update the text of the TextBox
+        /// </summary>
+        /// <param name="text">New string</param>
+        /// <param name="width">Set to null to ignore width, taking as much width as needed.</param>
+        public void UpdateText(string text, int? width = null)
+        {
+
+            if (width != null && width > 0)
+            {
+                _rtl = new RichTextLayout
+                {
+                    Font = TrueTypeLoader.Instance.GetFont(_font, _size),
+                    Text = text,
+                    Width = width
+                };
+            }
+            else
+            {
+                _rtl = new RichTextLayout
+                {
+                    Font = TrueTypeLoader.Instance.GetFont(_font, _size),
+                    Text = text,
+                };
+                Width = _rtl.Size.X;
+            }
+        }
+
         public static string ConvertHtmlToFontStashSharpCommand(string text)
         {
             string finalString;
@@ -199,30 +274,52 @@ namespace ClassicUO.Game.UI.Controls
 
             finalString = Regex.Replace(text, "<basefont color=\"?'?(?<color>.*?)\"?'?>", " /c[${color}]", RegexOptions.Multiline | RegexOptions.IgnoreCase);
             finalString = Regex.Replace(finalString, "<Bodytextcolor\"?'?(?<color>.*?)\"?'?>", " /c[${color}]", RegexOptions.Multiline | RegexOptions.IgnoreCase);
-            finalString = finalString.Replace("</basefont>", "/cd").Replace("</BASEFONT>", "/cd").Replace("<br>", "\n").Replace("\n", "\n/cd");
+            finalString = finalString.Replace("</basefont>", "/cd").Replace("</BASEFONT>", "/cd").Replace("<br>", "\n").Replace("<BR>", "\n").Replace("\n", "\n/cd");
             finalString = finalString.Replace("<left>", "").Replace("</left>", "");
             finalString = finalString.Replace("<b>", "").Replace("</b>", "");
             finalString = finalString.Replace("</font>", "").Replace("<h2>", "");
+            finalString = finalString.Replace("<BODY>", "").Replace("<body>", "");
+            finalString = finalString.Replace("</BODY>", "").Replace("</body>", "");
             return finalString;
         }
 
         public override void Update()
         {
-            if (Width != _rtl.Width || _dirty)
+            if (Width != _rtl.Width || _dirty || WantUpdateSize)
             {
                 var text = _rtl.Text;
-                _rtl = new RichTextLayout
-                {
-                    Font = TrueTypeLoader.Instance.GetFont(_font, _size),
-                    Text = text,
-                    Width = Width,
-                };
 
+                if (WantUpdateSize)
+                {
+                    _rtl = new RichTextLayout
+                    {
+                        Font = TrueTypeLoader.Instance.GetFont(_font, _size),
+                        Text = text,
+                    };
+                }
+                else
+                {
+                    _rtl = new RichTextLayout
+                    {
+                        Font = TrueTypeLoader.Instance.GetFont(_font, _size),
+                        Text = text,
+                        Width = Width,
+                    };
+                }
+
+                WantUpdateSize = false;
                 _dirty = false;
             }
         }
 
         public override bool Draw(UltimaBatcher2D batcher, int x, int y)
+        {
+            base.Draw(batcher, x, y);
+
+            return Draw(batcher, x, y, _color);
+        }
+
+        public bool Draw(UltimaBatcher2D batcher, int x, int y, Color color)
         {
             if (IsDisposed)
             {
@@ -238,7 +335,7 @@ namespace ClassicUO.Game.UI.Controls
                 x += Width;
             }
 
-            _rtl.Draw(batcher, new Vector2(x, y), _color, horizontalAlignment: _align);
+            _rtl.Draw(batcher, new Vector2(x, y), color * Alpha, horizontalAlignment: _align);
 
             return true;
         }

@@ -1,32 +1,42 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace ClassicUO.Assets
+namespace ClassicUO.Renderer
 {
-    public class PixelPicker
+    public sealed class PixelPicker
     {
         const int InitialDataCount = 0x40000; // 256kb
 
         Dictionary<ulong, int> m_IDs = new Dictionary<ulong, int>();
         readonly List<byte> m_Data = new List<byte>(InitialDataCount); // list<t> access is 10% slower than t[].
 
-        public bool Get(ulong textureID, int x, int y, int extraRange = 0)
+        public bool Get(ulong textureID, int x, int y, int extraRange = 0, double scale = 1f)
         {
             int index;
             if (!m_IDs.TryGetValue(textureID, out index))
             {
                 return false;
             }
+
+            if (scale != 1f)
+            {
+                x = (int)(x / scale);
+                y = (int)(y / scale);
+            }
+
             int width = ReadIntegerFromData(ref index);
+
+
             if (x < 0 || x >= width)
             {
                 return false;
             }
-            int height = ReadIntegerFromData(ref index);
-            if (y < 0 || y >= height)
+
+            if (y < 0 || y >= ReadIntegerFromData(ref index))
             {
                 return false;
             }
+
             int current = 0;
             int target = x + y * width;
             bool inTransparentSpan = true;
@@ -74,7 +84,7 @@ namespace ClassicUO.Assets
             height = ReadIntegerFromData(ref index);
         }
 
-        public void Set(ulong textureID, int width, int height, Span<uint> pixels)
+        public void Set(ulong textureID, int width, int height, ReadOnlySpan<uint> pixels)
         {
             if (Has(textureID))
             {

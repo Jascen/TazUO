@@ -5,6 +5,7 @@ using ClassicUO.Game.UI.Controls;
 using ClassicUO.Input;
 using ClassicUO.Network;
 using ClassicUO.Renderer;
+using ClassicUO.Renderer.Animations;
 using ClassicUO.Resources;
 using Microsoft.Xna.Framework;
 using System;
@@ -57,13 +58,13 @@ namespace ClassicUO.Game.UI.Gumps
             Add(new AlphaBlendControl(0.65f) { Width = Width, Height = 75, Hue = 997 });
 
             TextBox _;
-            Add(_ = new TextBox(isPurchaseGump ? "Shop Inventory" : "Your Inventory", TrueTypeLoader.EMBEDDED_FONT, 30, Width, Color.LightBlue, FontStashSharp.RichText.TextHorizontalAlignment.Center, false));
+            Add(_ = new TextBox(isPurchaseGump ? "Shop Inventory" : "Your Inventory", TrueTypeLoader.EMBEDDED_FONT, 30, Width, Color.LightBlue, FontStashSharp.RichText.TextHorizontalAlignment.Center, false) { AcceptMouseInput = false });
             _.Y = (50 - _.MeasuredSize.Y) / 2;
 
-            Add(_ = new TextBox("Item", TrueTypeLoader.EMBEDDED_FONT, 20, 75, Color.White, strokeEffect: false) { X = 5 });
+            Add(_ = new TextBox("Item", TrueTypeLoader.EMBEDDED_FONT, 20, 75, Color.White, strokeEffect: false) { X = 5, AcceptMouseInput = false });
             _.Y = 55 - _.Height;
 
-            Add(_ = new TextBox("/c[white]Avail.\n/cdPrice per item", TrueTypeLoader.EMBEDDED_FONT, 20, 150, Color.Gold, FontStashSharp.RichText.TextHorizontalAlignment.Right, false));
+            Add(_ = new TextBox("/c[white]Avail.\n/cdPrice per item", TrueTypeLoader.EMBEDDED_FONT, 20, 150, Color.Gold, FontStashSharp.RichText.TextHorizontalAlignment.Right, false) { AcceptMouseInput = false });
             _.Y = 55 - _.Height;
             _.X = Width - 1 - _.Width - 5;
 
@@ -215,31 +216,27 @@ namespace ClassicUO.Game.UI.Gumps
 
                 SetTooltip(serial);
 
-
-
                 Add(backgound = new AlphaBlendControl(0.01f) { Width = Width, Height = Height });
-
-                //Add(new ResizableStaticPic(Graphic, Height, Height) { Hue = hue, AcceptMouseInput = false });
 
                 itemInfo = new Area(false) { Width = Width - Height, Height = Height, X = Height, AcceptMouseInput = false };
                 purchaseSell = new Area(false) { Width = Width - Height, Height = Height, X = Height, AcceptMouseInput = false, IsVisible = false };
 
                 #region ITEM INFO
                 TextBox _;
-                itemInfo.Add(textBoxName = new TextBox(Name, TrueTypeLoader.EMBEDDED_FONT, 25, ITEM_DESCPTION_WIDTH - Height, Color.White, strokeEffect: false));
+                itemInfo.Add(textBoxName = new TextBox(Name, TrueTypeLoader.EMBEDDED_FONT, 25, ITEM_DESCPTION_WIDTH - Height, Color.White, strokeEffect: false) { AcceptMouseInput = false });
                 textBoxName.Y = (itemInfo.Height - textBoxName.MeasuredSize.Y) / 2;
 
                 TextBox countTB;
-                itemInfo.Add(countTB = new TextBox($"x{count}", TrueTypeLoader.EMBEDDED_FONT, 20, ITEM_DESCPTION_WIDTH - Height, Color.WhiteSmoke, FontStashSharp.RichText.TextHorizontalAlignment.Right, false) { Y = 3 });
+                itemInfo.Add(countTB = new TextBox($"x{count}", TrueTypeLoader.EMBEDDED_FONT, 20, ITEM_DESCPTION_WIDTH - Height, Color.WhiteSmoke, FontStashSharp.RichText.TextHorizontalAlignment.Right, false) { Y = 3, AcceptMouseInput = false });
                 countTB.X = itemInfo.Width - countTB.Width - 3;
 
-                itemInfo.Add(_ = new TextBox($"{price}gp", TrueTypeLoader.EMBEDDED_FONT, 25, ITEM_DESCPTION_WIDTH - Height, Color.Gold, FontStashSharp.RichText.TextHorizontalAlignment.Right, false));
+                itemInfo.Add(_ = new TextBox($"{price}gp", TrueTypeLoader.EMBEDDED_FONT, 25, ITEM_DESCPTION_WIDTH - Height, Color.Gold, FontStashSharp.RichText.TextHorizontalAlignment.Right, false) { AcceptMouseInput = false });
                 _.Y = itemInfo.Height - _.Height - 3;
                 _.X = itemInfo.Width - _.Width - 3;
                 #endregion
 
                 #region PURCHASE OR SELL
-                purchaseSell.Add(new TextBox($"How many would you like to {(isPurchase ? "buy" : "sell")} at /c[gold]{price}gp /cdeach?", TrueTypeLoader.EMBEDDED_FONT, 18, purchaseSell.Width - 76, Color.White, strokeEffect: false));
+                purchaseSell.Add(new TextBox($"How many would you like to {(isPurchase ? "buy" : "sell")} at /c[gold]{price}gp /cdeach?", TrueTypeLoader.EMBEDDED_FONT, 18, purchaseSell.Width - 76, Color.White, strokeEffect: false) { AcceptMouseInput = false });
 
                 AlphaBlendControl sliderBG;
                 purchaseSell.Add(sliderBG = new AlphaBlendControl(0.5f) { Width = purchaseSell.Width - 78, Height = 5, Hue = 148, BaseColor = Color.White });
@@ -259,8 +256,10 @@ namespace ClassicUO.Game.UI.Gumps
 
                 buySellButton.MouseUp += (sender, e) =>
                 {
-                    Dictionary<uint, ushort> theItem = new Dictionary<uint, ushort>();
-                    theItem.Add(serial, (ushort)quantity.Value);
+                    Dictionary<uint, ushort> theItem = new Dictionary<uint, ushort>
+                    {
+                        { serial, (ushort)quantity.Value }
+                    };
 
                     Tuple<uint, ushort>[] item = theItem.Select(t => new Tuple<uint, ushort>(t.Key, (ushort)t.Value)).ToArray();
 
@@ -308,8 +307,30 @@ namespace ClassicUO.Game.UI.Gumps
 
                 if (button == MouseButtonType.Left)
                 {
-                    itemInfo.IsVisible ^= true;
-                    purchaseSell.IsVisible ^= true;
+                    if (Keyboard.Shift)
+                    {
+                        Dictionary<uint, ushort> theItem = new Dictionary<uint, ushort>
+                        {
+                            { Serial, (ushort)Count }
+                        };
+
+                        Tuple<uint, ushort>[] item = theItem.Select(t => new Tuple<uint, ushort>(t.Key, (ushort)t.Value)).ToArray();
+
+                        if (isPurchase)
+                        {
+                            NetClient.Socket.Send_BuyRequest(gumpSerial, item);
+                        }
+                        else
+                        {
+                            NetClient.Socket.Send_SellRequest(gumpSerial, item);
+                        }
+                        Dispose();
+                    }
+                    else
+                    {
+                        itemInfo.IsVisible ^= true;
+                        purchaseSell.IsVisible ^= true;
+                    }
                 }
 
                 return true;
@@ -330,13 +351,13 @@ namespace ClassicUO.Game.UI.Gumps
                 {
                     ushort graphic = Graphic;
 
-                    if (graphic >= AnimationsLoader.MAX_ANIMATIONS_DATA_INDEX_COUNT)
+                    if (graphic >= 2048)
                     {
                         graphic = 0;
                     }
 
                     byte group = GetAnimGroup(graphic);
-                    var frames = AnimationsLoader.Instance.GetAnimationFrames(graphic, group, 1, out var hue2, out _, true);
+                    var frames = Client.Game.Animations.GetAnimationFrames(graphic, group, 1, out var hue2, out _, true);
 
                     if (frames.Length != 0)
                     {
@@ -364,11 +385,11 @@ namespace ClassicUO.Game.UI.Gumps
                 }
                 else
                 {
-                    var texture = ArtLoader.Instance.GetStaticTexture(Graphic, out var bounds);
+                    ref readonly var texture = ref Client.Game.Arts.GetArt((uint)Graphic);
 
                     hueVector = ShaderHueTranslator.GetHueVector(Hue, TileDataLoader.Instance.StaticData[Graphic].IsPartialHue, 1f);
 
-                    var rect = ArtLoader.Instance.GetRealArtBounds(Graphic);
+                    var rect = Client.Game.Arts.GetRealArtBounds(Graphic);
 
                     Point originalSize = new Point(Height, Height);
                     Point point = new Point();
@@ -387,7 +408,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                     batcher.Draw
                     (
-                        texture,
+                        texture.Texture,
                         new Rectangle
                         (
                             x + point.X,
@@ -397,8 +418,8 @@ namespace ClassicUO.Game.UI.Gumps
                         ),
                         new Rectangle
                         (
-                            bounds.X + rect.X,
-                            bounds.Y + rect.Y,
+                            texture.UV.X + rect.X,
+                            texture.UV.Y + rect.Y,
                             rect.Width,
                             rect.Height
                         ),
@@ -411,13 +432,17 @@ namespace ClassicUO.Game.UI.Gumps
 
             private static byte GetAnimGroup(ushort graphic)
             {
-                switch (AnimationsLoader.Instance.GetGroupIndex(graphic))
+                var groupType = Client.Game.Animations.GetAnimType(graphic);
+                switch (AnimationsLoader.Instance.GetGroupIndex(graphic, groupType))
                 {
-                    case ANIMATION_GROUPS.AG_LOW: return (byte)LOW_ANIMATION_GROUP.LAG_STAND;
+                    case AnimationGroups.Low:
+                        return (byte)LowAnimationGroup.Stand;
 
-                    case ANIMATION_GROUPS.AG_HIGHT: return (byte)HIGHT_ANIMATION_GROUP.HAG_STAND;
+                    case AnimationGroups.High:
+                        return (byte)HighAnimationGroup.Stand;
 
-                    case ANIMATION_GROUPS.AG_PEOPLE: return (byte)PEOPLE_ANIMATION_GROUP.PAG_STAND;
+                    case AnimationGroups.People:
+                        return (byte)PeopleAnimationGroup.Stand;
                 }
 
                 return 0;
@@ -438,7 +463,7 @@ namespace ClassicUO.Game.UI.Gumps
             private class BuySellButton : Control
             {
                 private readonly bool isPurchase;
-                TextBox text;
+                private TextBox text;
 
                 public BuySellButton(bool isPurchase, int quantity, int price)
                 {
@@ -460,7 +485,7 @@ namespace ClassicUO.Game.UI.Gumps
                 {
                     if (text == null)
                     {
-                        text = new TextBox($"{(isPurchase ? "Buy" : "Sell")}\n{quantity}\n/c[Gold]{price * quantity}", TrueTypeLoader.EMBEDDED_FONT, 17, Width, Color.White, FontStashSharp.RichText.TextHorizontalAlignment.Center, true);
+                        text = new TextBox($"{(isPurchase ? "Buy" : "Sell")}\n{quantity}\n/c[Gold]{price * quantity}", TrueTypeLoader.EMBEDDED_FONT, 17, Width, Color.White, FontStashSharp.RichText.TextHorizontalAlignment.Center, true) { AcceptMouseInput = false };
                         Add(text);
                     }
                     else
@@ -489,7 +514,7 @@ namespace ClassicUO.Game.UI.Gumps
             public uint Serial { get; }
             public ushort Graphic { get; }
             public ushort Hue { get; }
-            public int Count { get; }
+            public int Count { get; set; }
             public uint Price { get; }
             public string Name { get; set; }
         }

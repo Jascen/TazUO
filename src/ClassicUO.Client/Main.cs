@@ -38,7 +38,6 @@ using ClassicUO.Network;
 using ClassicUO.Resources;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
-using ClassicUO.Utility.Platforms;
 using SDL2;
 using System;
 using System.Globalization;
@@ -101,8 +100,7 @@ namespace ClassicUO
                 System.Threading.Tasks.Task reportCrash = System.Threading.Tasks.Task.Factory.StartNew(() =>
                 {
                     string s = "CV: " + Settings.GlobalSettings.ClientVersion + " - TUO: " + CUOEnviroment.Version.ToString() + "\n" + e.ExceptionObject.ToString();
-                    s = s.Substring(0, 1500);
-                    new CrashReportWebhook().SendMessage($"``` {s} ```")?.Dispose();
+                    new CrashReportWebhook().SendMessage(s);
                 });
 
                 Log.Panic(e.ExceptionObject.ToString());
@@ -146,6 +144,8 @@ namespace ClassicUO
             CUOEnviroment.IsOutlands = Settings.GlobalSettings.ShardType == 2;
 
             ReadSettingsFromArgs(args);
+
+            UpdateManager.CheckForUpdates();
 
             // still invalid, cannot load settings
             if (Settings.GlobalSettings == null)
@@ -197,7 +197,30 @@ namespace ClassicUO
 
             if (!Directory.Exists(Settings.GlobalSettings.UltimaOnlineDirectory) || !File.Exists(Path.Combine(Settings.GlobalSettings.UltimaOnlineDirectory, "tiledata.mul")))
             {
-                flags |= INVALID_UO_DIRECTORY;
+                bool foundFolder = false;
+                if (!CUOEnviroment.IsUnix)
+                {
+                    using (var fbd = new System.Windows.Forms.FolderBrowserDialog())
+                    {
+                        fbd.Description = "Please select your Ultima Online directory.";
+                        System.Windows.Forms.DialogResult result = fbd.ShowDialog();
+
+                        if (result == System.Windows.Forms.DialogResult.OK && !string.IsNullOrWhiteSpace(fbd.SelectedPath))
+                        {
+                            if (Directory.Exists(fbd.SelectedPath) && File.Exists(Path.Combine(fbd.SelectedPath, "tiledata.mul")))
+                            {
+                                Settings.GlobalSettings.UltimaOnlineDirectory = fbd.SelectedPath;
+                                Settings.GlobalSettings.Save();
+                                foundFolder = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!foundFolder)
+                {
+                    flags |= INVALID_UO_DIRECTORY;
+                }
             }
 
             string clientVersionText = Settings.GlobalSettings.ClientVersion;
@@ -249,9 +272,21 @@ namespace ClassicUO
 
                         break;
                 }
-
+                try
+                {
+#if DEBUG
+                ScriptCompiler.Compile(true, true);
+#else
+                    ScriptCompiler.Compile(false, true);
+#endif
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                }
 
                 Client.Run();
+
             }
 
             Log.Trace("Closing...");
@@ -536,6 +571,10 @@ namespace ClassicUO
 
                         CUOEnviroment.NoServerPing = true;
 
+                        break;
+
+                    case "skipupdatecheck":
+                        UpdateManager.SkipUpdateCheck = true;
                         break;
                 }
             }

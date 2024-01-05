@@ -41,6 +41,7 @@ using ClassicUO.Resources;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 using SDL2;
+using System.Collections.Generic;
 
 namespace ClassicUO.Game.UI.Gumps.Login
 {
@@ -386,6 +387,18 @@ namespace ClassicUO.Game.UI.Gumps.Login
                 }
             );
 
+            string[] accts = SimpleAccountManager.GetAccounts();
+            if (accts.Length > 0)
+            {
+                _textboxAccount.ContextMenu = new ContextMenuControl();
+                foreach (string acct in accts)
+                {
+                    _textboxAccount.ContextMenu.Add(new ContextMenuItemEntry(acct, () => { _textboxAccount.SetText(acct); }));
+                }
+                _textboxAccount.SetTooltip("Right click to select another account.");
+                _textboxAccount.MouseUp += (s, e) => { if (e.Button == MouseButtonType.Right) _textboxAccount.ContextMenu.Show(); };
+            }
+
             _passwordFake.RealText = Crypter.Decrypt(Settings.GlobalSettings.Password);
 
             _checkboxSaveAccount.IsChecked = Settings.GlobalSettings.SaveAccount;
@@ -524,6 +537,33 @@ namespace ClassicUO.Game.UI.Gumps.Login
             {
                 _textboxAccount.SetKeyboardFocus();
             }
+
+            _ = new TextBox("A new version of TazUO is available!\n Click to open the download page.", TrueTypeLoader.EMBEDDED_FONT, 20, 300, Color.Yellow, strokeEffect: false) { X = 10, Y = 10, AcceptMouseInput = false };
+            Add(_hit = new HitBox(_.X, _.Y, _.MeasuredSize.X, _.MeasuredSize.Y));
+            _hit.MouseUp += (s, e) =>
+            {
+                Utility.Platforms.PlatformHelper.LaunchBrowser("https://github.com/bittiez/TazUO/releases/latest");
+            };
+            _hit.Add(new AlphaBlendControl() { Width = _hit.Width, Height = _hit.Height });
+            Add(_);
+            if (!UpdateManager.HasUpdate)
+            {
+                _.IsVisible = false;
+                _hit.IsVisible = false;
+            }
+
+            if (!UpdateManager.SkipUpdateCheck)
+            {
+                UpdateManager.UpdateStatusChanged += (s, e) =>
+                {
+                    if (UpdateManager.HasUpdate)
+                    {
+                        _.IsVisible = true;
+                        _hit.IsVisible = true;
+                    }
+                };
+            }
+
         }
 
         public override void OnKeyboardReturn(int textID, string text)

@@ -30,23 +30,25 @@
 
 #endregion
 
-using System.Collections.Generic;
-using System.Linq;
+using ClassicUO.Assets;
 using ClassicUO.Configuration;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
-using ClassicUO.Assets;
 using ClassicUO.Network;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ClassicUO.Game.GameObjects
 {
-    internal class PlayerMobile : Mobile
+    public class PlayerMobile : Mobile
     {
         private readonly Dictionary<BuffIconType, BuffIcon> _buffIcons = new Dictionary<BuffIconType, BuffIcon>();
+
+        private static SpellVisualRangeManager.CastTimerProgressBar castTimer;
 
         public PlayerMobile(uint serial) : base(serial)
         {
@@ -57,6 +59,16 @@ namespace ClassicUO.Game.GameObjects
                 SkillEntry skill = SkillsLoader.Instance.Skills[i];
                 Skills[i] = new Skill(skill.Name, skill.Index, skill.HasAction);
             }
+
+            Skill.SkillValueChangedEvent += (s, e) =>
+            {
+                if (ProfileManager.CurrentProfile.DisplaySkillBarOnChange)
+                {
+                    SkillProgressBar.QueManager.AddSkill(e.Index);
+                }
+            };
+
+            UIManager.Add(castTimer = new SpellVisualRangeManager.CastTimerProgressBar());
         }
 
         public Skill[] Skills { get; }
@@ -257,8 +269,9 @@ namespace ClassicUO.Game.GameObjects
                 if (gump != null)
                     gump.AddBuff(new BuffIcon(type, graphic, time, text, title));
             }
-        }
 
+            EventSink.InvokeOnBuffAdded(null, new BuffEventArgs(_buffIcons[type]));
+        }
 
         public bool IsBuffIconExists(BuffIconType graphic)
         {
@@ -267,7 +280,12 @@ namespace ClassicUO.Game.GameObjects
 
         public void RemoveBuff(BuffIconType graphic)
         {
-            _buffIcons.Remove(graphic);
+            if (_buffIcons.TryGetValue(graphic, out BuffIcon ev))
+            {
+                EventSink.InvokeOnBuffRemoved(null, new BuffEventArgs(ev));
+                _buffIcons.Remove(graphic);
+            }
+
             if (ProfileManager.CurrentProfile.UseImprovedBuffBar)
             {
                 ImprovedBuffGump gump = UIManager.GetGump<ImprovedBuffGump>();
@@ -1322,8 +1340,10 @@ namespace ClassicUO.Game.GameObjects
 
             int max = 0;
 
-            foreach (Gump control in UIManager.Gumps)
+            for (LinkedListNode<Gump> last = UIManager.Gumps.Last; last != null; last = last.Previous)
             {
+                Control control = last.Value;
+
                 if (control is UseAbilityButtonGump s)
                 {
                     s.RequestUpdateContents();
@@ -1345,6 +1365,8 @@ namespace ClassicUO.Game.GameObjects
 
             TryOpenDoors();
             TryOpenCorpses();
+
+            EventSink.InvokeOnPositionChanged(this, new PositionChangedArgs(new Microsoft.Xna.Framework.Vector3(X, Y, Z)));
         }
 
         public void TryOpenCorpses()
@@ -1371,7 +1393,6 @@ namespace ClassicUO.Game.GameObjects
                 }
             }
         }
-
 
         protected override void OnDirectionChanged()
         {
@@ -1445,9 +1466,9 @@ namespace ClassicUO.Game.GameObjects
                     continue;
 
                 Gump gump = UIManager.Gumps.ElementAt(i);
-            //}
-            //foreach (Gump gump in UIManager.Gumps)
-            //{
+                //}
+                //foreach (Gump gump in UIManager.Gumps)
+                //{
                 switch (gump)
                 {
                     case ModernPaperdoll _:

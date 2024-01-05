@@ -2,7 +2,7 @@
 
 // Copyright (c) 2021, andreakarasho
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 // 1. Redistributions of source code must retain the above copyright
@@ -16,7 +16,7 @@
 // 4. Neither the name of the copyright holder nor the
 //    names of its contributors may be used to endorse or promote products
 //    derived from this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -37,6 +37,8 @@ using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.Scenes;
+using ClassicUO.Game.UI;
+using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Input;
 using ClassicUO.Network;
@@ -61,7 +63,8 @@ namespace ClassicUO
         private readonly Texture2D[] _hueSamplers = new Texture2D[3];
         private bool _ignoreNextTextInput;
         private readonly float[] _intervalFixedUpdate = new float[2];
-        private double _totalElapsed, _currentFpsTime;
+        private double _totalElapsed,
+            _currentFpsTime;
         private uint _totalFrames;
         private UltimaBatcher2D _uoSpriteBatch;
         private bool _suppressedDraw;
@@ -73,14 +76,18 @@ namespace ClassicUO
         {
             GraphicManager = new GraphicsDeviceManager(this);
 
-            GraphicManager.PreparingDeviceSettings += (sender, e) => { e.GraphicsDeviceInformation.PresentationParameters.RenderTargetUsage = RenderTargetUsage.DiscardContents; };
+            GraphicManager.PreparingDeviceSettings += (sender, e) =>
+            {
+                e.GraphicsDeviceInformation.PresentationParameters.RenderTargetUsage =
+                    RenderTargetUsage.DiscardContents;
+            };
 
             GraphicManager.PreferredDepthStencilFormat = DepthFormat.Depth24Stencil8;
             SetVSync(false);
 
             Window.ClientSizeChanged += WindowOnClientSizeChanged;
             Window.AllowUserResizing = true;
-            Window.Title = $"ClassicUO - {CUOEnviroment.Version}";
+            Window.Title = $"TazUO - {CUOEnviroment.Version}";
             IsMouseVisible = Settings.GlobalSettings.RunMouseInASeparateThread;
 
             IsFixedTimeStep = false; // Settings.GlobalSettings.FixedTimeStep;
@@ -92,6 +99,13 @@ namespace ClassicUO
         public GameCursor GameCursor { get; private set; }
         public AudioManager Audio { get; private set; }
 
+        public Renderer.Animations.Animations Animations { get; private set; }
+        public Renderer.Arts.Art Arts { get; private set; }
+        public Renderer.Gumps.Gump Gumps { get; private set; }
+        public Renderer.Texmaps.Texmap Texmaps { get; private set; }
+        public Renderer.Lights.Light Lights { get; private set; }
+        public Renderer.MultiMaps.MultiMap MultiMaps { get; private set; }
+        public Renderer.Sounds.Sound Sounds { get; private set; }
 
         public GraphicsDeviceManager GraphicManager { get; }
         public readonly uint[] FrameDelay = new uint[2];
@@ -126,19 +140,42 @@ namespace ClassicUO
 
             _hueSamplers[0] = new Texture2D(GraphicsDevice, TEXTURE_WIDTH, TEXTURE_HEIGHT);
             _hueSamplers[1] = new Texture2D(GraphicsDevice, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-            _hueSamplers[2] = new Texture2D(GraphicsDevice, LIGHTS_TEXTURE_WIDTH, LIGHTS_TEXTURE_HEIGHT);
+            _hueSamplers[2] = new Texture2D(
+                GraphicsDevice,
+                LIGHTS_TEXTURE_WIDTH,
+                LIGHTS_TEXTURE_HEIGHT
+            );
 
-
-            uint[] buffer = System.Buffers.ArrayPool<uint>.Shared.Rent(Math.Max(LIGHTS_TEXTURE_WIDTH * LIGHTS_TEXTURE_HEIGHT, TEXTURE_WIDTH * TEXTURE_HEIGHT * 2));
+            uint[] buffer = System.Buffers.ArrayPool<uint>.Shared.Rent(
+                Math.Max(
+                    LIGHTS_TEXTURE_WIDTH * LIGHTS_TEXTURE_HEIGHT,
+                    TEXTURE_WIDTH * TEXTURE_HEIGHT * 2
+                )
+            );
 
             fixed (uint* ptr = buffer)
             {
                 HuesLoader.Instance.CreateShaderColors(buffer);
-                _hueSamplers[0].SetDataPointerEXT(0, null, (IntPtr)ptr, TEXTURE_WIDTH * TEXTURE_HEIGHT * sizeof(uint));
-                _hueSamplers[1].SetDataPointerEXT(0, null, (IntPtr)ptr + TEXTURE_WIDTH * TEXTURE_HEIGHT * sizeof(uint), TEXTURE_WIDTH * TEXTURE_HEIGHT * sizeof(uint));
+                _hueSamplers[0].SetDataPointerEXT(
+                    0,
+                    null,
+                    (IntPtr)ptr,
+                    TEXTURE_WIDTH * TEXTURE_HEIGHT * sizeof(uint)
+                );
+                _hueSamplers[1].SetDataPointerEXT(
+                    0,
+                    null,
+                    (IntPtr)ptr + TEXTURE_WIDTH * TEXTURE_HEIGHT * sizeof(uint),
+                    TEXTURE_WIDTH * TEXTURE_HEIGHT * sizeof(uint)
+                );
 
                 LightColors.CreateLightTextures(buffer, LIGHTS_TEXTURE_HEIGHT);
-                _hueSamplers[2].SetDataPointerEXT(0, null, (IntPtr)ptr, LIGHTS_TEXTURE_WIDTH * LIGHTS_TEXTURE_HEIGHT * sizeof(uint));
+                _hueSamplers[2].SetDataPointerEXT(
+                    0,
+                    null,
+                    (IntPtr)ptr,
+                    LIGHTS_TEXTURE_WIDTH * LIGHTS_TEXTURE_HEIGHT * sizeof(uint)
+                );
             }
 
             System.Buffers.ArrayPool<uint>.Shared.Return(buffer, true);
@@ -151,12 +188,15 @@ namespace ClassicUO
 
             Fonts.Initialize(GraphicsDevice);
             SolidColorTextureCache.Initialize(GraphicsDevice);
-
-            TextureAtlas.InitializeSharedTexture(GraphicsDevice);
-            GumpsLoader.Instance.CreateAtlas(GraphicsDevice);
-            LightsLoader.Instance.CreateAtlas(GraphicsDevice);
-            AnimationsLoader.Instance.CreateAtlas(GraphicsDevice);
             PNGLoader.Instance.GraphicsDevice = GraphicsDevice;
+
+            Animations = new Renderer.Animations.Animations(GraphicsDevice);
+            Arts = new Renderer.Arts.Art(GraphicsDevice);
+            Gumps = new Renderer.Gumps.Gump(GraphicsDevice);
+            Texmaps = new Renderer.Texmaps.Texmap(GraphicsDevice);
+            Lights = new Renderer.Lights.Light(GraphicsDevice);
+            MultiMaps = new Renderer.MultiMaps.MultiMap(GraphicsDevice);
+            Sounds = new Renderer.Sounds.Sound();
 
             LightColors.LoadLights();
 
@@ -174,16 +214,12 @@ namespace ClassicUO
 
         protected override void UnloadContent()
         {
-            SDL_GetWindowBordersSize
-            (
-                Window.Handle,
-                out int top,
-                out int left,
-                out _,
-                out _
-            );
+            SDL_GetWindowBordersSize(Window.Handle, out int top, out int left, out _, out _);
 
-            Settings.GlobalSettings.WindowPosition = new Point(Math.Max(0, Window.ClientBounds.X - left), Math.Max(0, Window.ClientBounds.Y - top));
+            Settings.GlobalSettings.WindowPosition = new Point(
+                Math.Max(0, Window.ClientBounds.X - left),
+                Math.Max(0, Window.ClientBounds.Y - top)
+            );
 
             Audio?.StopMusic();
             Settings.GlobalSettings.Save();
@@ -211,7 +247,6 @@ namespace ClassicUO
 
             base.UnloadContent();
         }
-
 
         public void SetWindowTitle(string title)
         {
@@ -319,8 +354,14 @@ namespace ClassicUO
                 return;
             }
 
-            SDL_SetWindowBordered(Window.Handle, borderless ? SDL_bool.SDL_FALSE : SDL_bool.SDL_TRUE);
-            SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(Window.Handle), out SDL_DisplayMode displayMode);
+            SDL_SetWindowBordered(
+                Window.Handle,
+                borderless ? SDL_bool.SDL_FALSE : SDL_bool.SDL_TRUE
+            );
+            SDL_GetCurrentDisplayMode(
+                SDL_GetWindowDisplayIndex(Window.Handle),
+                out SDL_DisplayMode displayMode
+            );
 
             int width = displayMode.w;
             int height = displayMode.h;
@@ -328,19 +369,15 @@ namespace ClassicUO
             if (borderless)
             {
                 SetWindowSize(width, height);
-                SDL_GetDisplayUsableBounds(SDL_GetWindowDisplayIndex(Window.Handle), out SDL_Rect rect);
+                SDL_GetDisplayUsableBounds(
+                    SDL_GetWindowDisplayIndex(Window.Handle),
+                    out SDL_Rect rect
+                );
                 SDL_SetWindowPosition(Window.Handle, rect.x, rect.y);
             }
             else
             {
-                SDL_GetWindowBordersSize
-                (
-                    Window.Handle,
-                    out int top,
-                    out _,
-                    out int bottom,
-                    out _
-                );
+                SDL_GetWindowBordersSize(Window.Handle, out int top, out _, out int bottom, out _);
 
                 SetWindowSize(width, height - (top - bottom));
                 SetWindowPositionBySettings();
@@ -379,14 +416,7 @@ namespace ClassicUO
 
         public void SetWindowPositionBySettings()
         {
-            SDL_GetWindowBordersSize
-            (
-                Window.Handle,
-                out int top,
-                out int left,
-                out _,
-                out _
-            );
+            SDL_GetWindowBordersSize(Window.Handle, out int top, out int left, out _, out _);
 
             if (Settings.GlobalSettings.WindowPosition.HasValue)
             {
@@ -420,6 +450,10 @@ namespace ClassicUO
 
             if (Scene != null && Scene.IsLoaded && !Scene.IsDestroyed)
             {
+                if(EventSink.GameUpdate != null)
+                {
+                    EventSink.GameUpdate();
+                }
                 Profiler.EnterContext("Update");
                 Scene.Update();
                 Profiler.ExitContext("Update");
@@ -438,7 +472,13 @@ namespace ClassicUO
                 _currentFpsTime = 0;
             }
 
-            double x = _intervalFixedUpdate[!IsActive && ProfileManager.CurrentProfile != null && ProfileManager.CurrentProfile.ReduceFPSWhenInactive ? 1 : 0];
+            double x = _intervalFixedUpdate[
+                !IsActive
+                && ProfileManager.CurrentProfile != null
+                && ProfileManager.CurrentProfile.ReduceFPSWhenInactive
+                    ? 1
+                    : 0
+            ];
             _suppressedDraw = false;
 
             if (_totalElapsed > x)
@@ -612,11 +652,20 @@ namespace ClassicUO
 
                     Keyboard.OnKeyDown(sdlEvent->key);
 
-                    if (Plugin.ProcessHotkeys((int)sdlEvent->key.keysym.sym, (int)sdlEvent->key.keysym.mod, true))
+                    if (
+                        Plugin.ProcessHotkeys(
+                            (int)sdlEvent->key.keysym.sym,
+                            (int)sdlEvent->key.keysym.mod,
+                            true
+                        )
+                    )
                     {
                         _ignoreNextTextInput = false;
 
-                        UIManager.KeyboardFocusControl?.InvokeKeyDown(sdlEvent->key.keysym.sym, sdlEvent->key.keysym.mod);
+                        UIManager.KeyboardFocusControl?.InvokeKeyDown(
+                            sdlEvent->key.keysym.sym,
+                            sdlEvent->key.keysym.mod
+                        );
 
                         Scene.OnKeyDown(sdlEvent->key);
                     }
@@ -630,13 +679,42 @@ namespace ClassicUO
                 case SDL_EventType.SDL_KEYUP:
 
                     Keyboard.OnKeyUp(sdlEvent->key);
-                    UIManager.KeyboardFocusControl?.InvokeKeyUp(sdlEvent->key.keysym.sym, sdlEvent->key.keysym.mod);
+                    UIManager.KeyboardFocusControl?.InvokeKeyUp(
+                        sdlEvent->key.keysym.sym,
+                        sdlEvent->key.keysym.mod
+                    );
                     Scene.OnKeyUp(sdlEvent->key);
                     Plugin.ProcessHotkeys(0, 0, false);
 
                     if (sdlEvent->key.keysym.sym == SDL_Keycode.SDLK_PRINTSCREEN)
                     {
-                        TakeScreenshot();
+                        if (Keyboard.Ctrl)
+                        {
+                            if (Tooltip.IsEnabled)
+                            {
+                                ClipboardScreenshot(new Rectangle(Tooltip.X, Tooltip.Y, Tooltip.Width, Tooltip.Height), GraphicsDevice);
+                            }
+                            else if (MultipleToolTipGump.SSIsEnabled)
+                            {
+                                ClipboardScreenshot(new Rectangle(MultipleToolTipGump.SSX, MultipleToolTipGump.SSY, MultipleToolTipGump.SSWidth, MultipleToolTipGump.SSHeight), GraphicsDevice);
+                            }
+                            else if (UIManager.MouseOverControl != null && UIManager.MouseOverControl.IsVisible)
+                            {
+                                Control c = UIManager.MouseOverControl.RootParent;
+                                if (c != null)
+                                {
+                                    ClipboardScreenshot(c.Bounds, GraphicsDevice);
+                                }
+                                else
+                                {
+                                    ClipboardScreenshot(UIManager.MouseOverControl.Bounds, GraphicsDevice);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            TakeScreenshot();
+                        }
                     }
 
                     break;
@@ -746,7 +824,9 @@ namespace ClassicUO
                         {
                             lastClickTime = 0;
 
-                            bool res = Scene.OnMouseDoubleClick(buttonType) || UIManager.OnMouseDoubleClick(buttonType);
+                            bool res =
+                                Scene.OnMouseDoubleClick(buttonType)
+                                || UIManager.OnMouseDoubleClick(buttonType);
 
                             if (!res)
                             {
@@ -762,7 +842,10 @@ namespace ClassicUO
                         }
                         else
                         {
-                            if (buttonType != MouseButtonType.Left && buttonType != MouseButtonType.Right)
+                            if (
+                                buttonType != MouseButtonType.Left
+                                && buttonType != MouseButtonType.Right
+                            )
                             {
                                 Plugin.ProcessMouse(sdlEvent->button.button, 0);
                             }
@@ -830,7 +913,10 @@ namespace ClassicUO
 
                         if (lastClickTime != 0xFFFF_FFFF)
                         {
-                            if (!Scene.OnMouseUp(buttonType) || UIManager.LastControlMouseDown(buttonType) != null)
+                            if (
+                                !Scene.OnMouseUp(buttonType)
+                                || UIManager.LastControlMouseDown(buttonType) != null
+                            )
                             {
                                 UIManager.OnMouseButtonUp(buttonType);
                             }
@@ -841,6 +927,84 @@ namespace ClassicUO
 
                         break;
                     }
+
+                case SDL_EventType.SDL_CONTROLLERBUTTONDOWN:
+                    Controller.OnButtonDown(sdlEvent->cbutton);
+                    UIManager.KeyboardFocusControl?.InvokeControllerButtonDown((SDL_GameControllerButton)sdlEvent->cbutton.button);
+                    Scene.OnControllerButtonDown(sdlEvent->cbutton);
+
+                    if (sdlEvent->cbutton.button == (byte)SDL_GameControllerButton.SDL_CONTROLLER_BUTTON_RIGHTSTICK)
+                    {
+                        SDL_Event e = new SDL_Event();
+                        e.type = SDL_EventType.SDL_MOUSEBUTTONDOWN;
+                        e.button.button = (byte)MouseButtonType.Left;
+                        SDL2.SDL.SDL_PushEvent(ref e);
+                    }
+                    else if (sdlEvent->cbutton.button == (byte)SDL_GameControllerButton.SDL_CONTROLLER_BUTTON_LEFTSTICK)
+                    {
+                        SDL_Event e = new SDL_Event();
+                        e.type = SDL_EventType.SDL_MOUSEBUTTONDOWN;
+                        e.button.button = (byte)MouseButtonType.Right;
+                        SDL2.SDL.SDL_PushEvent(ref e);
+                    }
+                    else if (sdlEvent->cbutton.button == (byte)SDL_GameControllerButton.SDL_CONTROLLER_BUTTON_START && World.InGame)
+                    {
+                        Gump g = UIManager.GetGump<ModernOptionsGump>();
+                        if(g == null)
+                        {
+                            UIManager.Add(new ModernOptionsGump());
+                        } else
+                        {
+                            g.Dispose();
+                        }
+                    }
+                    break;
+
+                case SDL_EventType.SDL_CONTROLLERBUTTONUP:
+                    Controller.OnButtonUp(sdlEvent->cbutton);
+                    UIManager.KeyboardFocusControl?.InvokeControllerButtonUp((SDL_GameControllerButton)sdlEvent->cbutton.button);
+                    Scene.OnControllerButtonUp(sdlEvent->cbutton);
+
+                    if (sdlEvent->cbutton.button == (byte)SDL_GameControllerButton.SDL_CONTROLLER_BUTTON_RIGHTSTICK)
+                    {
+                        SDL_Event e = new SDL_Event();
+                        e.type = SDL_EventType.SDL_MOUSEBUTTONUP;
+                        e.button.button = (byte)MouseButtonType.Left;
+                        SDL2.SDL.SDL_PushEvent(ref e);
+                    }
+                    else if (sdlEvent->cbutton.button == (byte)SDL_GameControllerButton.SDL_CONTROLLER_BUTTON_LEFTSTICK)
+                    {
+                        SDL_Event e = new SDL_Event();
+                        e.type = SDL_EventType.SDL_MOUSEBUTTONUP;
+                        e.button.button = (byte)MouseButtonType.Right;
+                        SDL2.SDL.SDL_PushEvent(ref e);
+                    }
+                    break;
+
+                case SDL_EventType.SDL_CONTROLLERAXISMOTION: //Work around because sdl doesn't see trigger buttons as buttons, they are axis probably for pressure support
+                    //GameActions.Print(typeof(SDL_GameControllerButton).GetEnumName((SDL_GameControllerButton)sdlEvent->cbutton.button));
+                    if (sdlEvent->cbutton.button == (byte)SDL_GameControllerButton.SDL_CONTROLLER_BUTTON_BACK || sdlEvent->cbutton.button == (byte)SDL_GameControllerButton.SDL_CONTROLLER_BUTTON_GUIDE) //Left trigger BACK Right trigger GUIDE
+                    {
+                        if (sdlEvent->caxis.axisValue > 32000)
+                        {
+                            if (
+                                ((SDL_GameControllerButton)sdlEvent->cbutton.button == SDL_GameControllerButton.SDL_CONTROLLER_BUTTON_BACK && !Controller.Button_LeftTrigger)
+                                || ((SDL_GameControllerButton)sdlEvent->cbutton.button == SDL_GameControllerButton.SDL_CONTROLLER_BUTTON_GUIDE && !Controller.Button_RightTrigger)
+                                )
+                            {
+                                Controller.OnButtonDown(sdlEvent->cbutton);
+                                UIManager.KeyboardFocusControl?.InvokeControllerButtonDown((SDL_GameControllerButton)sdlEvent->cbutton.button);
+                                Scene.OnControllerButtonDown(sdlEvent->cbutton);
+                            }
+                        }
+                        else if (sdlEvent->caxis.axisValue < 5000)
+                        {
+                            Controller.OnButtonUp(sdlEvent->cbutton);
+                            UIManager.KeyboardFocusControl?.InvokeControllerButtonUp((SDL_GameControllerButton)sdlEvent->cbutton.button);
+                            Scene.OnControllerButtonUp(sdlEvent->cbutton);
+                        }
+                    }
+                    break;
             }
 
             return 1;
@@ -855,35 +1019,112 @@ namespace ClassicUO
 
         private void TakeScreenshot()
         {
-            string screenshotsFolder = FileSystemHelper.CreateFolderIfNotExists(CUOEnviroment.ExecutablePath, "Data", "Client", "Screenshots");
+            string screenshotsFolder = FileSystemHelper.CreateFolderIfNotExists(
+                CUOEnviroment.ExecutablePath,
+                "Data",
+                "Client",
+                "Screenshots"
+            );
 
-            string path = Path.Combine(screenshotsFolder, $"screenshot_{DateTime.Now:yyyy-MM-dd_hh-mm-ss}.png");
+            string path = Path.Combine(
+                screenshotsFolder,
+                $"screenshot_{DateTime.Now:yyyy-MM-dd_hh-mm-ss}.png"
+            );
 
-            Color[] colors = new Color[GraphicManager.PreferredBackBufferWidth * GraphicManager.PreferredBackBufferHeight];
+            Color[] colors = new Color[
+                GraphicManager.PreferredBackBufferWidth * GraphicManager.PreferredBackBufferHeight
+            ];
 
             GraphicsDevice.GetBackBufferData(colors);
 
-            using (Texture2D texture = new Texture2D
-            (
-                GraphicsDevice,
-                GraphicManager.PreferredBackBufferWidth,
-                GraphicManager.PreferredBackBufferHeight,
-                false,
-                SurfaceFormat.Color
-            ))
+            using (
+                Texture2D texture = new Texture2D(
+                    GraphicsDevice,
+                    GraphicManager.PreferredBackBufferWidth,
+                    GraphicManager.PreferredBackBufferHeight,
+                    false,
+                    SurfaceFormat.Color
+                )
+            )
             using (FileStream fileStream = File.Create(path))
             {
                 texture.SetData(colors);
                 texture.SaveAsPng(fileStream, texture.Width, texture.Height);
                 string message = string.Format(ResGeneral.ScreenshotStoredIn0, path);
 
-                if (ProfileManager.CurrentProfile == null || ProfileManager.CurrentProfile.HideScreenshotStoredInMessage)
+                if (
+                    ProfileManager.CurrentProfile == null
+                    || ProfileManager.CurrentProfile.HideScreenshotStoredInMessage
+                )
                 {
                     Log.Info(message);
                 }
                 else
                 {
                     GameActions.Print(message, 0x44, MessageType.System);
+                }
+            }
+        }
+
+        public void ClipboardScreenshot(Rectangle position, GraphicsDevice graphicDevice)
+        {
+            Color[] colors = new Color[position.Width * position.Height];
+
+            graphicDevice.GetBackBufferData(position, colors, 0, colors.Length);
+
+            using (
+                Texture2D texture = new Texture2D(
+                    GraphicsDevice,
+                    position.Width,
+                    position.Height,
+                    false,
+                    SurfaceFormat.Color
+                )
+            )
+            {
+                texture.SetData(colors);
+
+                if (CUOEnviroment.IsUnix)
+                {
+                    string screenshotsFolder = FileSystemHelper.CreateFolderIfNotExists(
+                        CUOEnviroment.ExecutablePath,
+                        "Data",
+                        "Client",
+                        "Screenshots"
+                    );
+
+                    string path = Path.Combine(
+                        screenshotsFolder,
+                        $"screenshot_{DateTime.Now:yyyy-MM-dd_hh-mm-ss}.png"
+                    );
+
+                    using FileStream fileStream = File.Create(path);
+                    texture.SaveAsPng(fileStream, texture.Width, texture.Height);
+                    string message = string.Format(ResGeneral.ScreenshotStoredIn0, path);
+
+                    if (ProfileManager.CurrentProfile == null || ProfileManager.CurrentProfile.HideScreenshotStoredInMessage)
+                    {
+                        Log.Info(message);
+                    }
+                    else
+                    {
+                        GameActions.Print(message, 0x44, MessageType.System);
+                    }
+                }
+                else
+                {
+                    using (MemoryStream stream = new MemoryStream())
+                    {
+                        texture.SaveAsPng(stream, texture.Width, texture.Height);
+
+                        try
+                        {
+                            System.Windows.Forms.Clipboard.SetImage(System.Drawing.Image.FromStream(stream));
+                            GameActions.Print("Copied screenshot to your clipboard");
+                        }
+                        catch { }
+                    }
+
                 }
             }
         }

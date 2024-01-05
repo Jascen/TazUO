@@ -2,7 +2,7 @@
 
 // Copyright (c) 2021, andreakarasho
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 // 1. Redistributions of source code must retain the above copyright
@@ -16,7 +16,7 @@
 // 4. Neither the name of the copyright holder nor the
 //    names of its contributors may be used to endorse or promote products
 //    derived from this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -37,6 +37,7 @@ using ClassicUO.IO;
 using ClassicUO.Assets;
 using ClassicUO.Renderer;
 using Microsoft.Xna.Framework;
+using ClassicUO.Game.Managers;
 
 namespace ClassicUO.Game.GameObjects
 {
@@ -76,7 +77,10 @@ namespace ClassicUO.Game.GameObjects
                 hue = Constants.HIGHLIGHT_CURRENT_OBJECT_HUE;
                 partial = false;
             }
-            else if (ProfileManager.CurrentProfile.NoColorObjectsOutOfRange && Distance > World.ClientViewRange)
+            else if (
+                ProfileManager.CurrentProfile.NoColorObjectsOutOfRange
+                && Distance > World.ClientViewRange
+            )
             {
                 hue = Constants.OUT_RANGE_COLOR;
                 partial = false;
@@ -85,6 +89,24 @@ namespace ClassicUO.Game.GameObjects
             {
                 hue = Constants.DEAD_RANGE_COLOR;
                 partial = false;
+            }
+            else
+            {
+                if (SelectedObject.Object == this)
+                {
+                    SpellVisualRangeManager.Instance.LastCursorTileLoc = new Vector2(X, Y);
+                }
+
+                if (SpellVisualRangeManager.Instance.IsTargetingAfterCasting())
+                {
+                    hue = SpellVisualRangeManager.Instance.ProcessHueForTile(hue, this);
+                }
+
+                if (TileMarkerManager.Instance.IsTileMarked(X, Y, World.Map.Index, out var nhue))
+                    hue = nhue;
+
+                if (ProfileManager.CurrentProfile.DisplayRadius && Distance == ProfileManager.CurrentProfile.DisplayRadiusDistance && System.Math.Abs(Z - World.Player.Z) < 11)
+                    hue = ProfileManager.CurrentProfile.DisplayRadiusHue;
             }
 
             Vector3 hueVec = ShaderHueTranslator.GetHueVector(hue, partial, AlphaHue / 255f);
@@ -96,14 +118,15 @@ namespace ClassicUO.Game.GameObjects
                 graphic = Constants.TREE_REPLACE_GRAPHIC;
             }
 
-            DrawStaticAnimated
-            (
+            DrawStaticAnimated(
                 batcher,
                 graphic,
                 posX,
                 posY,
                 hueVec,
-                ProfileManager.CurrentProfile.ShadowsEnabled && ProfileManager.CurrentProfile.ShadowsStatics && (isTree || ItemData.IsFoliage || StaticFilters.IsRock(graphic)),
+                ProfileManager.CurrentProfile.ShadowsEnabled
+                    && ProfileManager.CurrentProfile.ShadowsStatics
+                    && (isTree || ItemData.IsFoliage || StaticFilters.IsRock(graphic)),
                 depth,
                 ProfileManager.CurrentProfile.AnimatedWaterEffect && ItemData.IsWet
             );
@@ -118,7 +141,13 @@ namespace ClassicUO.Game.GameObjects
 
         public override bool CheckMouseSelection()
         {
-            if (!(SelectedObject.Object == this || FoliageIndex != -1 && Client.Game.GetScene<GameScene>().FoliageIndex == FoliageIndex))
+            if (
+                !(
+                    SelectedObject.Object == this
+                    || FoliageIndex != -1
+                        && Client.Game.GetScene<GameScene>().FoliageIndex == FoliageIndex
+                )
+            )
             {
                 ushort graphic = Graphic;
 
@@ -129,14 +158,13 @@ namespace ClassicUO.Game.GameObjects
                     graphic = Constants.TREE_REPLACE_GRAPHIC;
                 }
 
-                ref UOFileIndex index = ref ArtLoader.Instance.GetValidRefEntry(graphic + 0x4000);
+                ref var index = ref ArtLoader.Instance.GetValidRefEntry(graphic + 0x4000);
 
                 Point position = RealScreenPosition;
                 position.X -= index.Width;
                 position.Y -= index.Height;
 
-                return ArtLoader.Instance.PixelCheck
-                (
+                return Client.Game.Arts.PixelCheck(
                     graphic,
                     SelectedObject.TranslatedMousePositionByViewport.X - position.X,
                     SelectedObject.TranslatedMousePositionByViewport.Y - position.Y

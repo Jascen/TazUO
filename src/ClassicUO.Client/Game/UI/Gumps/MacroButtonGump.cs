@@ -40,6 +40,7 @@ using ClassicUO.Assets;
 using ClassicUO.Renderer;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System.Data.SqlClient;
 
 namespace ClassicUO.Game.UI.Gumps
 {
@@ -138,8 +139,9 @@ namespace ClassicUO.Game.UI.Gumps
 
                 if (value.HasValue)
                 {
-                    var texture = GumpsLoader.Instance.GetGumpTexture(value.Value, out _bounds);
-                    IsPartialHue = texture == null ? false : TileDataLoader.Instance.StaticData[value.Value].IsPartialHue;
+                    ref readonly var texture = ref Client.Game.Gumps.GetGump(value.Value);
+                    _bounds = texture.UV;
+                    IsPartialHue = texture.Texture == null ? false : TileDataLoader.Instance.StaticData[value.Value].IsPartialHue;
                 }
 
                 Width = (int)(_bounds.Width * factor);
@@ -230,33 +232,36 @@ namespace ClassicUO.Game.UI.Gumps
                 hueVector
             );
 
-            batcher.DrawRectangle
-            (
-                SolidColorTextureCache.GetTexture(Color.Gray),
-                x,
-                y,
-                Width,
-                Height,
-                hueVector
-            );
-
             if (Graphic.HasValue)
             {
-                var texture = GumpsLoader.Instance.GetGumpTexture(Graphic.Value, out Rectangle bounds);
-                if (texture != null)
+                //var texture = GumpsLoader.Instance.GetGumpTexture(, out Rectangle bounds);
+                ref readonly var texture = ref Client.Game.Gumps.GetGump(Graphic.Value);
+                if (texture.Texture != null)
                 {
                     Rectangle rect = new Rectangle(x, y, Width, Height);
                     batcher.Draw
                     (
-                        texture,
+                        texture.Texture,
                         rect,
-                        bounds,
+                        texture.UV,
                         hueVector
                     );
                 }
             }
+            else
+            {
+                batcher.DrawRectangle
+                    (
+                        SolidColorTextureCache.GetTexture(Color.Gray),
+                        x,
+                        y,
+                        Width,
+                        Height,
+                        hueVector
+                    );
+            }
 
-            if (!HideLabel)
+            if (!HideLabel && _gText != null)
             {
                 _gText.Hue = (ushort)(MouseIsOver ? 53 : 0x03b2);
                 _gText.Draw(batcher, x, y + ((Height >> 1) - (_gText.Height >> 1)), Alpha);

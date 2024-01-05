@@ -48,7 +48,7 @@ using ClassicUO.Assets;
 
 namespace ClassicUO.Game
 {
-    internal static class World
+    public static class World
     {
         private static readonly EffectManager _effectManager = new EffectManager();
         private static readonly List<uint> _toRemove = new List<uint>();
@@ -772,7 +772,7 @@ namespace ClassicUO.Game
 
             UIManager.GetGump<BaseHealthBarGump>(Player.Serial)?.Dispose();
 
-            GridContainer.Clear();
+            GridContainer.ClearInstance();
 
             ObjectToRemove = 0;
             LastObject = 0;

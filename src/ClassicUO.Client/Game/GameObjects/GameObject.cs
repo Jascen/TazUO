@@ -2,7 +2,7 @@
 
 // Copyright (c) 2021, andreakarasho
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 // 1. Redistributions of source code must retain the above copyright
@@ -16,7 +16,7 @@
 // 4. Neither the name of the copyright holder nor the
 //    names of its contributors may be used to endorse or promote products
 //    derived from this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -43,12 +43,12 @@ using Microsoft.Xna.Framework;
 
 namespace ClassicUO.Game.GameObjects
 {
-    internal abstract class BaseGameObject : LinkedObject
+    public abstract class BaseGameObject : LinkedObject
     {
         public Point RealScreenPosition;
     }
 
-    internal abstract partial class GameObject : BaseGameObject
+    public abstract partial class GameObject : BaseGameObject
     {
         public bool IsDestroyed { get; protected set; }
         public bool IsPositionChanged { get; protected set; }
@@ -58,7 +58,9 @@ namespace ClassicUO.Game.GameObjects
         {
             get
             {
-                if (World.Player == null /*|| IsDestroyed*/)
+                if (
+                    World.Player == null /*|| IsDestroyed*/
+                )
                 {
                     return ushort.MaxValue;
                 }
@@ -68,7 +70,8 @@ namespace ClassicUO.Game.GameObjects
                     return 0;
                 }
 
-                int x = X, y = Y;
+                int x = X,
+                    y = Y;
 
                 if (this is Mobile mobile && mobile.Steps.Count != 0)
                 {
@@ -84,9 +87,7 @@ namespace ClassicUO.Game.GameObjects
             }
         }
 
-        public virtual void Update()
-        {
-        }
+        public virtual void Update() { }
 
         public abstract bool CheckMouseSelection();
 
@@ -98,22 +99,26 @@ namespace ClassicUO.Game.GameObjects
         public short PriorityZ;
         public GameObject TNext;
         public GameObject TPrevious;
-        public ushort X, Y;
+        public ushort X,
+            Y;
         public sbyte Z;
         public GameObject RenderListNext;
-
-    
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Vector2 GetScreenPosition()
         {
-           return new Vector2
-            (
+            return new Vector2(
                 RealScreenPosition.X + Offset.X,
                 RealScreenPosition.Y + (Offset.Y - Offset.Z)
             );
         }
 
+        public int DistanceFrom(Vector2 pos)
+        {
+            if (pos == null) { return int.MaxValue; }
+
+            return Math.Max(Math.Abs(X - (int)pos.X), Math.Abs(Y - (int)pos.Y));
+        }
 
         public void AddToTile()
         {
@@ -125,15 +130,15 @@ namespace ClassicUO.Game.GameObjects
             AddToTile(World.Map?.GetChunk(x, y), x % 8, y % 8);
         }
 
-       public void AddToTile(Chunk chunk, int chunkX, int chunkY)
-       {
+        public void AddToTile(Chunk chunk, int chunkX, int chunkY)
+        {
             RemoveFromTile();
 
             if (!IsDestroyed && chunk != null)
             {
                 chunk.AddGameObject(this, chunkX, chunkY);
             }
-       }
+        }
 
         public void RemoveFromTile()
         {
@@ -151,9 +156,7 @@ namespace ClassicUO.Game.GameObjects
             TPrevious = null;
         }
 
-        public virtual void UpdateGraphicBySeason()
-        {
-        }
+        public virtual void UpdateGraphicBySeason() { }
 
         public void UpdateScreenPosition()
         {
@@ -181,8 +184,7 @@ namespace ClassicUO.Game.GameObjects
 
         public void AddMessage(MessageType type, string message, TextType text_type)
         {
-            AddMessage
-            (
+            AddMessage(
                 type,
                 message,
                 ProfileManager.CurrentProfile.ChatFont,
@@ -199,11 +201,11 @@ namespace ClassicUO.Game.GameObjects
                 return;
             }
 
-            TextObject last = (TextObject) TextContainer.Items;
+            TextObject last = (TextObject)TextContainer.Items;
 
             while (last?.Next != null)
             {
-                last = (TextObject) last.Next;
+                last = (TextObject)last.Next;
             }
 
             if (last == null)
@@ -215,16 +217,16 @@ namespace ClassicUO.Game.GameObjects
 
             Point p = RealScreenPosition;
 
-            var bounds = ArtLoader.Instance.GetRealArtBounds(Graphic);
+            var bounds = Client.Game.Arts.GetRealArtBounds(Graphic);
 
             p.Y -= bounds.Height >> 1;
 
-            p.X += (int) Offset.X + 22;
-            p.Y += (int) (Offset.Y - Offset.Z) + 44;
+            p.X += (int)Offset.X + 22;
+            p.Y += (int)(Offset.Y - Offset.Z) + 44;
 
             p = Client.Game.Scene.Camera.WorldToScreen(p);
 
-            for (; last != null; last = (TextObject) last.Previous)
+            for (; last != null; last = (TextObject)last.Previous)
             {
                 if (last.TextBox != null && !last.TextBox.IsDisposed)
                 {
@@ -258,7 +260,11 @@ namespace ClassicUO.Game.GameObjects
             int minY = 0;
             //int maxY = minY + ProfileManager.CurrentProfile.GameWindowSize.Y - 6;
 
-            for (TextObject item = (TextObject) TextContainer.Items; item != null; item = (TextObject) item.Next)
+            for (
+                TextObject item = (TextObject)TextContainer.Items;
+                item != null;
+                item = (TextObject)item.Next
+            )
             {
                 if (item.TextBox == null || item.TextBox.IsDisposed || item.Time < Time.Ticks)
                 {
@@ -298,8 +304,7 @@ namespace ClassicUO.Game.GameObjects
             }
         }
 
-        public void AddMessage
-        (
+        public void AddMessage(
             MessageType type,
             string text,
             byte font,
@@ -313,8 +318,7 @@ namespace ClassicUO.Game.GameObjects
                 return;
             }
 
-            TextObject msg = MessageManager.CreateMessage
-            (
+            TextObject msg = MessageManager.CreateMessage(
                 text,
                 hue,
                 font,
@@ -347,14 +351,9 @@ namespace ClassicUO.Game.GameObjects
             }
         }
 
+        protected virtual void OnPositionChanged() { }
 
-        protected virtual void OnPositionChanged()
-        {
-        }
-
-        protected virtual void OnDirectionChanged()
-        {
-        }
+        protected virtual void OnDirectionChanged() { }
 
         public virtual void Destroy()
         {
@@ -382,7 +381,6 @@ namespace ClassicUO.Game.GameObjects
             ObjectHandlesStatus = ObjectHandlesStatus.NONE;
             FrameInfo = Rectangle.Empty;
         }
-
 
         public static bool CanBeDrawn(ushort g)
         {
@@ -414,7 +412,7 @@ namespace ClassicUO.Game.GameObjects
                 }
 
                 // Easel fix.
-                // In older clients the tiledata flag for this 
+                // In older clients the tiledata flag for this
                 // item contains NoDiagonal for some reason.
                 // So the next check will make the item invisible.
                 if (g == 0x0F65 && Client.Version < ClientVersion.CV_60144)
@@ -426,7 +424,12 @@ namespace ClassicUO.Game.GameObjects
                 {
                     ref StaticTiles data = ref TileDataLoader.Instance.StaticData[g];
 
-                    if (!data.IsNoDiagonal || data.IsAnimated && World.Player != null && World.Player.Race == RaceType.GARGOYLE)
+                    if (
+                        !data.IsNoDiagonal
+                        || data.IsAnimated
+                            && World.Player != null
+                            && World.Player.Race == RaceType.GARGOYLE
+                    )
                     {
                         return true;
                     }

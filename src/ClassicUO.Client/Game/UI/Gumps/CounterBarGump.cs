@@ -2,7 +2,7 @@
 
 // Copyright (c) 2021, andreakarasho
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 // 1. Redistributions of source code must retain the above copyright
@@ -16,7 +16,7 @@
 // 4. Neither the name of the copyright holder nor the
 //    names of its contributors may be used to endorse or promote products
 //    derived from this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -52,14 +52,26 @@ namespace ClassicUO.Game.UI.Gumps
     {
         private AlphaBlendControl _background;
 
-        private int _rows, _columns, _rectSize;
+        public static CounterBarGump CurrentCounterBarGump { get; private set; }
+
+        private int _rows,
+            _columns,
+            _rectSize;
+
         //private bool _isVertical;
 
-        public CounterBarGump() : base(0, 0)
+        public CounterBarGump() : base(0, 0) 
         {
+            CurrentCounterBarGump = this;
         }
 
-        public CounterBarGump(int x, int y, int rectSize = 30, int rows = 1, int columns = 1 /*, bool vertical = false*/) : base(0, 0)
+        public CounterBarGump(
+            int x,
+            int y,
+            int rectSize = 30,
+            int rows = 1,
+            int columns = 1 /*, bool vertical = false*/
+        ) : base(0, 0)
         {
             X = x;
             Y = y;
@@ -89,6 +101,8 @@ namespace ClassicUO.Game.UI.Gumps
             //_isVertical = vertical;
 
             BuildGump();
+
+            CurrentCounterBarGump = this;
         }
 
         public override GumpType GumpType => GumpType.CounterBar;
@@ -110,7 +124,14 @@ namespace ClassicUO.Game.UI.Gumps
             {
                 for (int col = 0; col < _columns; col++)
                 {
-                    Add(new CounterItem(col * _rectSize + 2, row * _rectSize + 2, _rectSize - 4, _rectSize - 4));
+                    Add(
+                        new CounterItem(
+                            col * _rectSize + 2,
+                            row * _rectSize + 2,
+                            _rectSize - 4,
+                            _rectSize - 4
+                        )
+                    );
                 }
             }
         }
@@ -189,7 +210,6 @@ namespace ClassicUO.Game.UI.Gumps
             _background.Width = Width;
             _background.Height = Height;
 
-
             CounterItem[] items = GetControls<CounterItem>();
 
             int[] indices = new int[items.Length];
@@ -198,7 +218,8 @@ namespace ClassicUO.Game.UI.Gumps
             {
                 for (int col = 0; col < _columns; col++)
                 {
-                    int index = /*_isVertical ? col * _rows + row :*/ row * _columns + col;
+                    int index = /*_isVertical ? col * _rows + row :*/
+                        row * _columns + col;
 
                     if (index < items.Length)
                     {
@@ -215,7 +236,14 @@ namespace ClassicUO.Game.UI.Gumps
                     }
                     else
                     {
-                        Add(new CounterItem(col * _rectSize + 2, row * _rectSize + 2, _rectSize - 4, _rectSize - 4));
+                        Add(
+                            new CounterItem(
+                                col * _rectSize + 2,
+                                row * _rectSize + 2,
+                                _rectSize - 4,
+                                _rectSize - 4
+                            )
+                        );
                     }
                 }
             }
@@ -226,13 +254,30 @@ namespace ClassicUO.Game.UI.Gumps
 
                 if (index >= 0 && index < items.Length)
                 {
-                    items[i].Parent = null;
+                     items[i].Parent = null;
 
                     items[i].Dispose();
                 }
             }
 
             SetInScreen();
+        }
+
+        public CounterItem GetCounterItem(int index)
+        {
+            CounterItem[] items = GetControls<CounterItem>();
+
+            if(items == null)
+            {
+                return null;
+            }
+
+            if(items.Length > index)
+            {
+                return items[index];
+            }
+
+            return null;
         }
 
         public override void Save(XmlTextWriter writer)
@@ -279,7 +324,10 @@ namespace ClassicUO.Game.UI.Gumps
                 {
                     if (index < items.Length)
                     {
-                        items[index++]?.SetGraphic(ushort.Parse(controlXml.GetAttribute("graphic")), ushort.Parse(controlXml.GetAttribute("hue")));
+                        items[index++]?.SetGraphic(
+                            ushort.Parse(controlXml.GetAttribute("graphic")),
+                            ushort.Parse(controlXml.GetAttribute("hue"))
+                        );
                     }
                     else
                     {
@@ -291,13 +339,24 @@ namespace ClassicUO.Game.UI.Gumps
             IsEnabled = IsVisible = ProfileManager.CurrentProfile.CounterBarEnabled;
         }
 
+        public override void Dispose()
+        {
+            if (CurrentCounterBarGump == this)
+            {
+                CurrentCounterBarGump = null;
+            }
+            base.Dispose();
+        }
 
-        private class CounterItem : Control
+        public class CounterItem : Control
         {
             private int _amount;
 
             private readonly ImageWithText _image;
             private uint _time;
+            private const uint HIGHLIGHT_DURATION = 1000;
+            private uint _endHighlight;
+            private bool _highlight;
 
             public CounterItem(int x, int y, int w, int h)
             {
@@ -371,15 +430,17 @@ namespace ClassicUO.Game.UI.Gumps
                 {
                     if (Client.Game.GameCursor.ItemHold.Enabled)
                     {
-                        SetGraphic(Client.Game.GameCursor.ItemHold.Graphic, Client.Game.GameCursor.ItemHold.Hue);
+                        SetGraphic(
+                            Client.Game.GameCursor.ItemHold.Graphic,
+                            Client.Game.GameCursor.ItemHold.Hue
+                        );
 
-                        GameActions.DropItem
-                        (
+                        GameActions.DropItem(
                             Client.Game.GameCursor.ItemHold.Serial,
                             Client.Game.GameCursor.ItemHold.X,
                             Client.Game.GameCursor.ItemHold.Y,
                             0,
-                           Client.Game.GameCursor.ItemHold.Container
+                            Client.Game.GameCursor.ItemHold.Container
                         );
                     }
                     else if (ProfileManager.CurrentProfile.CastSpellsByOneClick)
@@ -399,7 +460,10 @@ namespace ClassicUO.Game.UI.Gumps
 
             protected override bool OnMouseDoubleClick(int x, int y, MouseButtonType button)
             {
-                if (button == MouseButtonType.Left && !ProfileManager.CurrentProfile.CastSpellsByOneClick)
+                if (
+                    button == MouseButtonType.Left
+                    && !ProfileManager.CurrentProfile.CastSpellsByOneClick
+                )
                 {
                     Use();
                 }
@@ -423,9 +487,18 @@ namespace ClassicUO.Game.UI.Gumps
                     {
                         _amount = 0;
 
-                        for (Item item = (Item) World.Player.Items; item != null; item = (Item) item.Next)
+                        for (
+                            Item item = (Item)World.Player.Items;
+                            item != null;
+                            item = (Item)item.Next
+                        )
                         {
-                            if (item.ItemData.IsContainer && !item.IsEmpty && item.Layer >= Layer.OneHanded && item.Layer <= Layer.Legs)
+                            if (
+                                item.ItemData.IsContainer
+                                && !item.IsEmpty
+                                && item.Layer >= Layer.OneHanded
+                                && item.Layer <= Layer.Legs
+                            )
                             {
                                 GetAmount(item, Graphic, Hue, ref _amount);
                             }
@@ -433,7 +506,9 @@ namespace ClassicUO.Game.UI.Gumps
 
                         if (ProfileManager.CurrentProfile.CounterBarDisplayAbbreviatedAmount)
                         {
-                            if (_amount >= ProfileManager.CurrentProfile.CounterBarAbbreviatedAmount)
+                            if (
+                                _amount >= ProfileManager.CurrentProfile.CounterBarAbbreviatedAmount
+                            )
                             {
                                 _image.SetAmount(StringHelper.IntToAbbreviatedString(_amount));
 
@@ -441,6 +516,17 @@ namespace ClassicUO.Game.UI.Gumps
                             }
                         }
 
+                        if (ProfileManager.CurrentProfile.CounterBarHighlightOnUse)
+                        {
+                            if (int.TryParse(_image.GetText(), out int cAmt))
+                            {
+                                if (cAmt > _amount)
+                                {
+                                    _highlight = true;
+                                    _endHighlight = Time.Ticks + HIGHLIGHT_DURATION;
+                                }
+                            }
+                        }
                         _image.SetAmount(_amount.ToString());
                     }
                 }
@@ -455,7 +541,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                 for (LinkedObject i = parent.Items; i != null; i = i.Next)
                 {
-                    Item item = (Item) i;
+                    Item item = (Item)i;
 
                     GetAmount(item, graphic, hue, ref amount);
 
@@ -470,24 +556,35 @@ namespace ClassicUO.Game.UI.Gumps
             {
                 base.Draw(batcher, x, y);
 
-
-                Texture2D color = SolidColorTextureCache.GetTexture(MouseIsOver ? Color.Yellow : ProfileManager.CurrentProfile.CounterBarHighlightOnAmount && _amount < ProfileManager.CurrentProfile.CounterBarHighlightAmount && Graphic != 0 ? Color.Red : Color.Gray);
+                Texture2D color = SolidColorTextureCache.GetTexture(
+                    MouseIsOver
+                        ? Color.Yellow
+                        : ProfileManager.CurrentProfile.CounterBarHighlightOnAmount
+                        && _amount < ProfileManager.CurrentProfile.CounterBarHighlightAmount
+                        && Graphic != 0
+                            ? Color.Red
+                            : Color.Gray
+                );
 
                 Vector3 hueVector = ShaderHueTranslator.GetHueVector(0);
 
-                batcher.DrawRectangle
-                (
-                    color,
-                    x,
-                    y,
-                    Width,
-                    Height,
-                    hueVector
-                );
+                if (_highlight && Time.Ticks > _endHighlight)
+                {
+                    _highlight = false;
+                }
+
+                if (_highlight)
+                {
+                    hueVector.Z = ((float)_endHighlight - (float)Time.Ticks) / (float)HIGHLIGHT_DURATION;
+                    batcher.Draw(SolidColorTextureCache.GetTexture(Color.Yellow), new Rectangle(x, y, Width, Height), hueVector);
+                }
+
+                hueVector.Z = 1;
+
+                batcher.DrawRectangle(color, x, y, Width, Height, hueVector);
 
                 return true;
             }
-
 
             private class ImageWithText : Control
             {
@@ -502,15 +599,7 @@ namespace ClassicUO.Game.UI.Gumps
                     WantUpdateSize = true;
                     AcceptMouseInput = false;
 
-                    _label = new Label
-                    (
-                        "",
-                        true,
-                        0x35,
-                        0,
-                        1,
-                        FontStyle.BlackBorder
-                    )
+                    _label = new Label("", true, 0x35, 0, 1, FontStyle.BlackBorder)
                     {
                         X = 2,
                         Y = Height - 15
@@ -518,7 +607,6 @@ namespace ClassicUO.Game.UI.Gumps
 
                     Add(_label);
                 }
-
 
                 public void ChangeGraphic(ushort graphic, ushort hue)
                 {
@@ -550,8 +638,8 @@ namespace ClassicUO.Game.UI.Gumps
                 {
                     if (_graphic != 0)
                     {
-                        var texture = ArtLoader.Instance.GetStaticTexture(_graphic, out var bounds);
-                        var rect = ArtLoader.Instance.GetRealArtBounds(_graphic);
+                        ref readonly var artInfo = ref Client.Game.Arts.GetArt(_graphic);
+                        var rect = Client.Game.Arts.GetRealArtBounds(_graphic);
 
                         Vector3 hueVector = ShaderHueTranslator.GetHueVector(_hue, _partial, 1f);
 
@@ -570,33 +658,30 @@ namespace ClassicUO.Game.UI.Gumps
                             point.Y = (Height >> 1) - (originalSize.Y >> 1);
                         }
 
-                        batcher.Draw
-                        (
-                            texture,
-                            new Rectangle
-                            (
-                                x + point.X,
-                                y + point.Y,
-                                originalSize.X,
-                                originalSize.Y
-                            ),
-                            new Rectangle
-                            (
-                                bounds.X + rect.X,
-                                bounds.Y + rect.Y,
+                        batcher.Draw(
+                            artInfo.Texture,
+                            new Rectangle(x + point.X, y + point.Y, originalSize.X, originalSize.Y),
+                            new Rectangle(
+                                artInfo.UV.X + rect.X,
+                                artInfo.UV.Y + rect.Y,
                                 rect.Width,
                                 rect.Height
                             ),
                             hueVector
                         );
                     }
-                        
+
                     return base.Draw(batcher, x, y);
                 }
 
                 public void SetAmount(string amount)
                 {
                     _label.Text = amount;
+                }
+
+                public string GetText()
+                {
+                    return _label?.Text ?? "";
                 }
             }
         }

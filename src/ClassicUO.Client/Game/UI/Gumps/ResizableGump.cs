@@ -30,16 +30,16 @@
 
 #endregion
 
-using ClassicUO.Assets;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Input;
 using ClassicUO.Renderer;
 using Microsoft.Xna.Framework;
+using System.Xml;
 
 namespace ClassicUO.Game.UI.Gumps
 {
-    internal abstract class ResizableGump : AnchorableGump
+    public abstract class ResizableGump : AnchorableGump
     {
         private readonly BorderControl _borderControl;
         private readonly Button _button;
@@ -47,8 +47,8 @@ namespace ClassicUO.Game.UI.Gumps
         private Point _lastSize, _savedSize;
         private readonly int _minH;
         private readonly int _minW;
-        private bool _isLocked = false;
-        private bool _prevCanMove, _prevCloseWithRightClick, _prevBorder;
+        protected bool _isLocked = false;
+        protected bool? _prevCanMove = null, _prevCloseWithRightClick = null, _prevBorder = null;
 
         public BorderControl BorderControl { get { return _borderControl; } }
 
@@ -180,33 +180,47 @@ namespace ClassicUO.Game.UI.Gumps
             GroupMatrixWidth = Width;
         }
 
+        public override void Restore(XmlElement xml)
+        {
+            base.Restore(xml);
+
+            SetLockStatus(IsLocked);
+        }
+
+        protected virtual void SetLockStatus(bool locked)
+        {
+            _prevCanMove ??= CanMove;
+            _prevCloseWithRightClick ??= CanCloseWithRightClick;
+            _prevBorder ??= ShowBorder;
+
+            _isLocked = locked;
+            IsLocked = locked;
+            if (_isLocked)
+            {
+                CanMove = false;
+                CanCloseWithRightClick = false;
+                ShowBorder = false;
+            }
+            else
+            {
+                CanMove = _prevCanMove ?? true;
+                CanCloseWithRightClick = _prevCloseWithRightClick ?? true;
+                ShowBorder = _prevBorder ?? true;
+            }
+        }
+
         protected override void OnMouseUp(int x, int y, MouseButtonType button)
         {
             base.OnMouseUp(x, y, button);
 
             if (button == MouseButtonType.Left && Keyboard.Alt && UIManager.MouseOverControl != null && (UIManager.MouseOverControl == this || UIManager.MouseOverControl.RootParent == this))
             {
-                if (GumpsLoader.Instance.GetGumpTexture(0x82C, out var bounds) != null)
+                ref readonly var texture = ref Client.Game.Gumps.GetGump(0x82C);
+                if (texture.Texture != null)
                 {
-                    if (x >= 0 && x < bounds.Width && y >= 0 && y <= bounds.Height)
+                    if (x >= 0 && x <= texture.UV.Width && y >= 0 && y <= texture.UV.Height)
                     {
-                        _isLocked = !_isLocked;
-                        if (_isLocked)
-                        {
-                            _prevCanMove = CanMove;
-                            _prevCloseWithRightClick = CanCloseWithRightClick;
-                            _prevBorder = ShowBorder;
-
-                            CanMove = false;
-                            CanCloseWithRightClick = false;
-                            ShowBorder = false;
-                        }
-                        else
-                        {
-                            CanMove = _prevCanMove;
-                            CanCloseWithRightClick = _prevCloseWithRightClick;
-                            ShowBorder = _prevBorder;
-                        }
+                        SetLockStatus(!_isLocked);
                     }
                 }
             }
@@ -220,9 +234,9 @@ namespace ClassicUO.Game.UI.Gumps
             {
                 Vector3 hueVector = ShaderHueTranslator.GetHueVector(0);
 
-                var texture = GumpsLoader.Instance.GetGumpTexture(0x82C, out var bounds);
+                ref readonly var texture = ref Client.Game.Gumps.GetGump(0x82C);
 
-                if (texture != null)
+                if (texture.Texture != null)
                 {
                     if (_isLocked)
                     {
@@ -231,9 +245,9 @@ namespace ClassicUO.Game.UI.Gumps
                     }
                     batcher.Draw
                     (
-                        texture,
+                        texture.Texture,
                         new Vector2(x, y),
-                        bounds,
+                        texture.UV,
                         hueVector
                     );
                 }

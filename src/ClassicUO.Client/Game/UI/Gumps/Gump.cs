@@ -32,7 +32,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Xml;
 using ClassicUO.Configuration;
 using ClassicUO.Game.GameObjects;
@@ -40,12 +39,11 @@ using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Input;
 using ClassicUO.Renderer;
-using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 
 namespace ClassicUO.Game.UI.Gumps
 {
-    internal class Gump : Control
+    public class Gump : Control
     {
         private bool isLocked = false;
 
@@ -57,7 +55,7 @@ namespace ClassicUO.Game.UI.Gumps
             AcceptKeyboardInput = false;
         }
 
-        public bool CanBeSaved => GumpType != Gumps.GumpType.None;
+        public bool CanBeSaved => GumpType != Gumps.GumpType.None || ServerSerial != 0;
 
         public virtual GumpType GumpType { get; }
 
@@ -112,6 +110,8 @@ namespace ClassicUO.Game.UI.Gumps
             }
         }
 
+        public bool CanBeLocked { get; set; } = true;
+
         public override void Update()
         {
             if (InvalidateContents)
@@ -143,7 +143,7 @@ namespace ClassicUO.Game.UI.Gumps
         protected override void OnMouseUp(int x, int y, MouseButtonType button)
         {
             base.OnMouseUp(x, y, button);
-            if (Keyboard.Ctrl && Keyboard.Alt && UIManager.MouseOverControl != null && (UIManager.MouseOverControl == this || UIManager.MouseOverControl.RootParent == this))
+            if (CanBeLocked && Keyboard.Ctrl && Keyboard.Alt && UIManager.MouseOverControl != null && (UIManager.MouseOverControl == this || UIManager.MouseOverControl.RootParent == this))
             {
                 IsLocked ^= true;
             }
@@ -155,6 +155,7 @@ namespace ClassicUO.Game.UI.Gumps
             writer.WriteAttributeString("x", X.ToString());
             writer.WriteAttributeString("y", Y.ToString());
             writer.WriteAttributeString("serial", LocalSerial.ToString());
+            writer.WriteAttributeString("serverSerial", ServerSerial.ToString());
             writer.WriteAttributeString("isLocked", isLocked.ToString());
             writer.WriteAttributeString("alphaOffset", AlphaOffset.ToString());
         }

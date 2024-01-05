@@ -46,7 +46,7 @@ using static ClassicUO.Network.NetClient;
 
 namespace ClassicUO.Game
 {
-    internal static class GameActions
+    public static class GameActions
     {
         public static int LastSpellIndex { get; set; } = 1;
         public static int LastSkillIndex { get; set; } = 1;
@@ -118,15 +118,11 @@ namespace ClassicUO.Game
 
         public static void OpenSettings(int page = 0)
         {
-            OptionsGump opt = UIManager.GetGump<OptionsGump>();
+            ModernOptionsGump opt = UIManager.GetGump<ModernOptionsGump>();
 
             if (opt == null)
             {
-                OptionsGump optionsGump = new OptionsGump
-                {
-                    X = (Client.Game.Window.ClientBounds.Width >> 1) - 300,
-                    Y = (Client.Game.Window.ClientBounds.Height >> 1) - 250
-                };
+                ModernOptionsGump optionsGump = new ModernOptionsGump();
 
                 UIManager.Add(optionsGump);
                 optionsGump.ChangePage(page);
@@ -205,6 +201,15 @@ namespace ClassicUO.Game
                 miniMapGump.ToggleSize();
                 miniMapGump.SetInScreen();
                 miniMapGump.BringOnTop();
+            }
+        }
+
+        public static void BandageSelf()
+        {
+            Item bandage = World.Player.FindBandage();
+            if(bandage != null)
+            {
+                NetClient.Socket.Send_TargetSelectedObject(bandage.Serial, World.Player.Serial);
             }
         }
 
@@ -361,14 +366,13 @@ namespace ClassicUO.Game
                         g.SetInScreen();
                         g.BringOnTop();
                     }
-                    else
-                        Socket.Send_DoubleClick(serial);
+                    Socket.Send_DoubleClick(serial);
                 }
                 else
                     Socket.Send_DoubleClick(serial);
             }
 
-            if (SerialHelper.IsItem(serial))
+            if (SerialHelper.IsItem(serial) || (SerialHelper.IsMobile(serial) && (World.Mobiles.Get(serial)?.IsHuman ?? false)))
             {
                 World.LastObject = serial;
             }
@@ -705,6 +709,7 @@ namespace ClassicUO.Game
             if (index >= 0)
             {
                 LastSpellIndex = index;
+                SpellVisualRangeManager.Instance.ClearCasting();
                 Socket.Send_CastSpellFromBook(index, bookSerial);
             }
         }
@@ -714,6 +719,7 @@ namespace ClassicUO.Game
             if (index >= 0)
             {
                 LastSpellIndex = index;
+                SpellVisualRangeManager.Instance.ClearCasting();
                 Socket.Send_CastSpell(index);
             }
         }

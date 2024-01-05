@@ -47,10 +47,11 @@ using ClassicUO.Resources;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 using SDL2;
+using static SDL2.SDL;
 
 namespace ClassicUO.Game.Managers
 {
-    internal class MacroManager : LinkedObject
+    public class MacroManager : LinkedObject
     {
         public static readonly string[] MacroNames = Enum.GetNames(typeof(MacroType));
         private readonly uint[] _itemsInHand = new uint[2];
@@ -81,6 +82,10 @@ namespace ClassicUO.Game.Managers
 
         public bool WaitingBandageTarget { get; set; }
 
+        public static MacroManager TryGetMacroManager()
+        {
+            return Client.Game.GetScene<GameScene>().Macros;
+        }
 
         public void Load()
         {
@@ -310,6 +315,32 @@ namespace ClassicUO.Game.Managers
             return macros;
         }
 
+        public Macro FindMacro(SDL_GameControllerButton button)
+        {
+            Macro obj = (Macro)Items;
+
+            while (obj != null)
+            {
+                if (obj.ControllerButtons != null)
+                {
+                    if (obj.ControllerButtons.Length > 1)
+                    {
+                        if (Controller.AreButtonsPressed(obj.ControllerButtons))
+                        {
+                            break;
+                        }
+                    }
+                    else if (obj.ControllerButtons.Contains(button))
+                    {
+                        break;
+                    }
+                }
+
+                obj = (Macro)obj.Next;
+            }
+
+            return obj;
+        }
 
         public Macro FindMacro(SDL.SDL_Keycode key, bool alt, bool ctrl, bool shift)
         {
@@ -681,6 +712,7 @@ namespace ClassicUO.Game.Managers
                                     if (macro.Code == MacroType.Close)
                                     {
                                         UIManager.GetGump<OptionsGump>()?.Dispose();
+                                        UIManager.GetGump<ModernOptionsGump>()?.Dispose();
                                     }
 
                                     break;
@@ -1809,6 +1841,15 @@ namespace ClassicUO.Game.Managers
                 case MacroType.LookAtMouse:
                     // handle in gamesceneinput
                     break;
+
+                case MacroType.UseCounterBar:
+                    string counterIndex = ((MacroObjectString)macro).Text;
+
+                    if (!string.IsNullOrEmpty(counterIndex) && int.TryParse(counterIndex, out int cIndex))
+                    {
+                        CounterBarGump.CurrentCounterBarGump?.GetCounterItem(cIndex)?.Use();
+                    }
+                    break;
             }
 
 
@@ -1852,7 +1893,7 @@ namespace ClassicUO.Game.Managers
     }
 
 
-    internal class Macro : LinkedObject, IEquatable<Macro>
+    public class Macro : LinkedObject, IEquatable<Macro>
     {
         public Macro(string name, SDL.SDL_Keycode key, bool alt, bool ctrl, bool shift) : this(name)
         {
@@ -1886,6 +1927,7 @@ namespace ClassicUO.Game.Managers
 
         public string Name { get; }
 
+        public SDL.SDL_GameControllerButton[] ControllerButtons { get; set; }
         public SDL.SDL_Keycode Key { get; set; }
         public MouseButtonType MouseButton { get; set; }
         public bool WheelScroll { get; set; }
@@ -1975,6 +2017,18 @@ namespace ClassicUO.Game.Managers
             }
 
             writer.WriteEndElement();
+
+            if (ControllerButtons != null)
+            {
+                writer.WriteStartElement("controllerbuttons");
+                foreach (var b in ControllerButtons)
+                {
+                    writer.WriteElementString("button", ((int)b).ToString());
+                }
+                writer.WriteEndElement();
+            }
+
+
 
             writer.WriteEndElement();
         }
@@ -2074,6 +2128,24 @@ namespace ClassicUO.Game.Managers
                     PushToBack(m);
                 }
             }
+
+            XmlElement buttons = xml["controllerbuttons"];
+
+            if(buttons != null)
+            {
+                List<SDL.SDL_GameControllerButton> savedButtons = new List<SDL_GameControllerButton> ();
+                foreach (XmlElement buttonNum in buttons.GetElementsByTagName("button"))
+                {
+                    if(int.TryParse(buttonNum.InnerText, out int b))
+                    {
+                        if (Enum.IsDefined(typeof(SDL_GameControllerButton), b))
+                        {
+                            savedButtons.Add((SDL_GameControllerButton)b);
+                        }
+                    }
+                }
+                ControllerButtons = savedButtons.ToArray();
+            }
         }
 
 
@@ -2091,6 +2163,7 @@ namespace ClassicUO.Game.Managers
                 case MacroType.SetUpdateRange:
                 case MacroType.ModifyUpdateRange:
                 case MacroType.RazorMacro:
+                case MacroType.UseCounterBar:
                     obj = new MacroObjectString(code, MacroSubType.MSC_NONE);
 
                     break;
@@ -2219,7 +2292,7 @@ namespace ClassicUO.Game.Managers
     }
 
 
-    internal class MacroObject : LinkedObject
+    public class MacroObject : LinkedObject
     {
         public MacroObject(MacroType code, MacroSubType sub)
         {
@@ -2265,6 +2338,7 @@ namespace ClassicUO.Game.Managers
                 case MacroType.SetUpdateRange:
                 case MacroType.ModifyUpdateRange:
                 case MacroType.RazorMacro:
+                case MacroType.UseCounterBar:
                     SubMenuType = 2;
 
                     break;
@@ -2286,7 +2360,7 @@ namespace ClassicUO.Game.Managers
         }
     }
 
-    internal class MacroObjectString : MacroObject
+    public class MacroObjectString : MacroObject
     {
         public MacroObjectString(MacroType code, MacroSubType sub, string str = "") : base(code, sub)
         {
@@ -2301,7 +2375,7 @@ namespace ClassicUO.Game.Managers
         }
     }
 
-    internal enum MacroType
+    public enum MacroType
     {
         None = 0,
         Say,
@@ -2381,10 +2455,11 @@ namespace ClassicUO.Game.Managers
         CloseInactiveHealthBars,
         CloseCorpses,
         UseObject,
-        LookAtMouse
+        LookAtMouse,
+        UseCounterBar
     }
 
-    internal enum MacroSubType
+    public enum MacroSubType
     {
         MSC_NONE = 0,
         NW, //Walk group

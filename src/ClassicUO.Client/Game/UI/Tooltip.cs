@@ -51,6 +51,11 @@ namespace ClassicUO.Game.UI
         private string _textHTML;
         private bool _dirty = false;
 
+        public static bool IsEnabled = false;
+
+        public static int X, Y;
+        public static int Width, Height;
+
         public string Text { get; protected set; }
 
         public bool IsEmpty => Text == null;
@@ -108,17 +113,25 @@ namespace ClassicUO.Game.UI
                 if (SerialHelper.IsItem(Serial))
                 {
                     finalString = Managers.ToolTipOverrideData.ProcessTooltipText(Serial);
-                    if (finalString == null)
-                        finalString = _textHTML;
+                    finalString ??= _textHTML;
                 }
 
                 if (string.IsNullOrEmpty(finalString) && !string.IsNullOrEmpty(_textHTML)) //Fix for vendor search
                     finalString = Managers.ToolTipOverrideData.ProcessTooltipText(_textHTML);
 
-                _textBox = new TextBox(
+                string font = TrueTypeLoader.EMBEDDED_FONT;
+                int fontSize = 15;
+
+                if (ProfileManager.CurrentProfile != null)
+                {
+                    font = ProfileManager.CurrentProfile.SelectedToolTipFont;
+                    fontSize = ProfileManager.CurrentProfile.SelectedToolTipFontSize;
+                }
+
+                    _textBox = new TextBox(
                     TextBox.ConvertHtmlToFontStashSharpCommand(finalString).Trim(),
-                    ProfileManager.CurrentProfile.SelectedToolTipFont,
-                    ProfileManager.CurrentProfile.SelectedToolTipFontSize,
+                    font,
+                    fontSize,
                     600,
                     hue,
                     align,
@@ -127,6 +140,8 @@ namespace ClassicUO.Game.UI
                 _textBox.Width = _textBox.MeasuredSize.X + 10;
                 if (_textBox.Width > 600)
                     _textBox.Width = 600;
+
+                IsEnabled = true;
             }
 
             if (_textBox == null || _textBox.IsDisposed)
@@ -154,6 +169,11 @@ namespace ClassicUO.Game.UI
             {
                 y = Client.Game.Window.ClientBounds.Height - z_height;
             }
+
+            X = x - 4;
+            Y = y - 2;
+            Width = (int)(z_width * zoom) + 1;
+            Height = (int)(z_height * zoom) + 1;
 
             Vector3 hue_vec = ShaderHueTranslator.GetHueVector(1, false, alpha);
 
@@ -185,7 +205,7 @@ namespace ClassicUO.Game.UI
                 hue_vec
             );
 
-            _textBox.Draw(batcher, x + 3, y + 3);
+            _textBox.Draw(batcher, x, y);
 
             return true;
         }
@@ -197,6 +217,7 @@ namespace ClassicUO.Game.UI
             _textHTML = Text = null;
             _textBox?.Dispose();
             _textBox = null;
+            IsEnabled = false;
         }
 
         public void SetGameObject(uint serial)

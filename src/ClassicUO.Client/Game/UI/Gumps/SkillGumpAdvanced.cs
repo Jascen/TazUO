@@ -2,7 +2,7 @@
 
 // Copyright (c) 2021, andreakarasho
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 // 1. Redistributions of source code must retain the above copyright
@@ -16,7 +16,7 @@
 // 4. Neither the name of the copyright holder nor the
 //    names of its contributors may be used to endorse or promote products
 //    derived from this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -50,12 +50,16 @@ namespace ClassicUO.Game.UI.Gumps
     {
         private const int WIDTH = 400;
 
-        private readonly Dictionary<Buttons, string> _buttonsToSkillsValues = new Dictionary<Buttons, string>
+        private readonly Dictionary<Buttons, string> _buttonsToSkillsValues = new Dictionary<
+            Buttons,
+            string
+        >
         {
             { Buttons.SortName, "Name" },
             { Buttons.SortReal, "Base" },
             { Buttons.SortBase, "Value" },
-            { Buttons.SortCap, "Cap" }
+            { Buttons.SortCap, "Cap" },
+            { Buttons.SortLock, "Lock" }
         };
 
         private readonly DataBox _databox;
@@ -63,12 +67,15 @@ namespace ClassicUO.Game.UI.Gumps
 
         public static bool Dragging;
 
+        private bool _showGroups;
         private bool _sortAsc;
         private string _sortField;
         private readonly GumpPic _sortOrderIndicator;
-        private double _totalReal, _totalValue;
+        private double _totalReal,
+            _totalValue;
         private bool _updateSkillsNeeded;
-        private HitBox resizeDrag;
+        private Button resizeDrag;
+        private Area BottomArea;
         private int dragStartH;
         private Label total, real, value;
         private AlphaBlendControl background;
@@ -186,6 +193,22 @@ namespace ClassicUO.Game.UI.Gumps
             );
 
             Add
+            (_ =
+                new NiceButton
+                (
+                    _.X + _.Width,
+                    _.Y,
+                    50,
+                    25,
+                    ButtonAction.Activate,
+                    "Lock"
+                )
+                {
+                    ButtonParameter = (int)Buttons.SortLock,
+                }
+            );
+
+            Add
             (
                 new Line
                 (
@@ -197,25 +220,55 @@ namespace ClassicUO.Game.UI.Gumps
                 )
             );
 
-            Add
-            (bottomLine =
-                new Line
-                (
-                    area.X,
-                    area.Height + area.Y - 1,
-                    area.Width,
-                    1,
-                    0xFFFFFFFF
-                )
-            );
+            //Add
+            //(bottomLine =
+            //    new Line
+            //    (
+            //        area.X,
+            //        area.Height + area.Y - 1,
+            //        area.Width,
+            //        1,
+            //        0xFFFFFFFF
+            //    )
+            //);
+            BottomArea = new Area()
+            {
+                X = 1,
+                Y = area.Height + area.Y - 1,
+                //AcceptMouseInput = true,
+                WantUpdateSize = false,
+                Width = Width,
+                Height = 20
+            };
+            Checkbox showGrp;
+            BottomArea.Add(showGrp = new Checkbox
+            (
+                0x00D2,
+                0x00D3,
+                "Show Groups",
+                0xFF,
+                1153
+            ));
+
+            showGrp.ValueChanged += (sender, e) =>
+            {
+                _showGroups = showGrp.IsChecked;
+                ForceUpdate();
+            };
+
+
+
+
+                Add(BottomArea);
 
             Add(_sortOrderIndicator = new GumpPic(0, 0, 0x985, 0));
             OnButtonClick((int)Buttons.SortName);
-
-            Add(resizeDrag = new HitBox(1, Height - 10, 20, 10, "Drag to resize", 0.50f));
-            resizeDrag.Add(new AlphaBlendControl(0.5f) { Width = 20, Height = 10, Hue = 997 });
+             
+            Add(resizeDrag = new Button(0, 0x837, 0x838, 0x838));
             resizeDrag.MouseDown += ResizeDrag_MouseDown;
             resizeDrag.MouseUp += ResizeDrag_MouseUp;
+            resizeDrag.X = Width - 10;
+            resizeDrag.Y = Height - 10;
         }
 
         public override GumpType GumpType => GumpType.SkillMenu;
@@ -234,7 +287,8 @@ namespace ClassicUO.Game.UI.Gumps
 
             if (FindControls<NiceButton>().Any(s => s.ButtonParameter == buttonID))
             {
-                NiceButton btn = FindControls<NiceButton>().First(s => s.ButtonParameter == buttonID);
+                NiceButton btn = FindControls<NiceButton>()
+                    .First(s => s.ButtonParameter == buttonID);
 
                 ushort g = (ushort)(_sortAsc ? 0x985 : 0x983);
 
@@ -257,52 +311,117 @@ namespace ClassicUO.Game.UI.Gumps
                 entry.Clear();
                 entry.Dispose();
             }
-
+  
             _skillListEntries.Clear();
-
             PropertyInfo pi = typeof(Skill).GetProperty(_sortField);
-            List<Skill> sortSkills = new List<Skill>(World.Player.Skills.OrderBy(x => pi.GetValue(x, null)));
 
-            if (_sortAsc)
+            if (_showGroups)
             {
-                sortSkills.Reverse();
+                var reversedGroupNames = new List<string>() {
+                    ResGeneral.Miscellaneous,
+                    ResGeneral.Combat,
+                    ResGeneral.TradeSkills,
+                    ResGeneral.Magic,
+                    ResGeneral.Wilderness,
+                    ResGeneral.Thieving,
+                    ResGeneral.Bard,
+                };
+
+                foreach (SkillsGroup g in SkillsGroupManager.Groups.OrderBy(g => reversedGroupNames.Contains(g.Name)).ThenBy(g => g.Name))
+                {
+                    var skillEntries = new List<SkillListEntry>();
+                    var a = new Area();
+                    a.AcceptMouseInput = true;
+                    a.WantUpdateSize = false;
+                    a.CanMove = true;
+                    a.Height = 26;
+                    a.Width = Width - 26;
+                    a.Tag = true;
+                    a.MouseUp += (sender, e) =>
+                    {
+                        var _a = (Area)sender;
+                        var newState = !(bool)_a.Tag;
+                        _a.Tag = newState;
+                        foreach (var entry in skillEntries)
+                        {
+                            entry.IsVisible = newState;
+                        }
+                        _databox.WantUpdateSize = true;
+                        _databox.ReArrangeChildren();
+                    };
+
+
+                    var skills = new List<Skill>();
+                    for (int i = 0; i < g.Count; i++)
+                    {
+                        byte index = g.GetSkill(i);
+                        if (index < SkillsLoader.Instance.SkillsCount)
+                        {
+                            skills.Add(World.Player.Skills[index]);
+                        }
+                    }
+
+                    skills = skills.OrderBy(s => pi.GetValue(s, null)).ToList();
+                    if (_sortAsc)
+                    {
+                        skills.Reverse();
+                    }
+
+                    var grpReal = skills.Sum(s => s.Base);
+                    var grpVal = skills.Sum(s => s.Value);
+                    _totalReal += grpReal;
+                    _totalValue += grpVal;
+                    ;
+
+                    foreach (var s in skills)
+                    {
+                        skillEntries.Add(new SkillListEntry(s));
+                    }
+
+                    a.Add(new Label(g.Name, true, 1153, font: 3)
+                    {
+                        X = 3,
+                        Y = 3
+                    });
+                    a.Add(new Label(grpReal.ToString("F1"), true, 1153) { X = 205, Y = 3 });
+                    a.Add(new Label(grpVal.ToString("F1"), true, 1153) { X = 255, Y = 3 });
+
+                    _databox.Add(a);
+                    foreach (var entry in skillEntries)
+                    {
+                        _skillListEntries.Add(entry);
+                        _databox.Add(entry);
+                    }
+                }
+            }
+            else
+            {
+                List<Skill> sortSkills = new List<Skill>(World.Player.Skills.OrderBy(x => pi.GetValue(x, null)));
+                if (_sortAsc)
+                {
+                    sortSkills.Reverse();
+                }
+                foreach (Skill skill in sortSkills)
+                {
+                    _totalReal += skill.Base;
+                    _totalValue += skill.Value;
+                    _skillListEntries.Add(new SkillListEntry(skill));
+                }
+                foreach (var entry in _skillListEntries)
+                {
+                    _databox.Add(entry);
+                }
             }
 
-            foreach (Skill skill in sortSkills)
-            {
-                _totalReal += skill.Base;
-                _totalValue += skill.Value;
-
-                Label skillName = new Label(skill.Name, true, 1153, font: 3);
-                Label skillValueBase = new Label(skill.Base.ToString(), true, 1153, font: 3);
-                Label skillValue = new Label(skill.Value.ToString(), true, 1153, font: 3);
-                Label skillCap = new Label(skill.Cap.ToString(), true, 1153, font: 3);
-
-                _skillListEntries.Add
-                (
-                    new SkillListEntry
-                    (
-                        skillName,
-                        skillValueBase,
-                        skillValue,
-                        skillCap,
-                        skill
-                    )
-                );
-            }
-
-            foreach (SkillListEntry t in _skillListEntries)
-            {
-                _databox.Add(t);
-            }
+           
 
             _databox.WantUpdateSize = true;
             _databox.ReArrangeChildren();
 
-            Add(total = new Label(ResGumps.Total, true, 1153) { X = 40, Y = Height-20 });
             Add(real = new Label(_totalReal.ToString("F1"), true, 1153) { X = 205, Y = Height - 20 });
             Add(value = new Label(_totalValue.ToString("F1"), true, 1153) { X = 255, Y = Height - 20 });
         }
+
 
         private void ResizeDrag_MouseUp(object sender, Input.MouseEventArgs e)
         {
@@ -344,11 +463,9 @@ namespace ClassicUO.Game.UI.Gumps
                 background.Height = Height - 1;
                 _databox.WantUpdateSize = true;
                 resizeDrag.Y = Height - 11;
-                total.Y = Height - 20;
                 real.Y = Height - 20;
                 value.Y = Height - 20;
-                bottomLine.Y = area.Height + area.Y - 1;
-
+                BottomArea.Y = area.Height + area.Y - 1;
             }
         }
 
@@ -356,8 +473,7 @@ namespace ClassicUO.Game.UI.Gumps
         {
             Vector3 hueVector = ShaderHueTranslator.GetHueVector(0);
 
-            batcher.DrawRectangle
-            (
+            batcher.DrawRectangle(
                 SolidColorTextureCache.GetTexture(Color.Gray),
                 x,
                 y,
@@ -369,7 +485,6 @@ namespace ClassicUO.Game.UI.Gumps
             return base.Draw(batcher, x, y);
         }
 
-
         public void ForceUpdate()
         {
             _updateSkillsNeeded = true;
@@ -380,22 +495,23 @@ namespace ClassicUO.Game.UI.Gumps
             SortName = 1,
             SortReal = 2,
             SortBase = 3,
-            SortCap = 4
+            SortCap = 4,
+            SortLock = 5,
         }
     }
+    
 
     internal class SkillListEntry : Control
     {
         private readonly Button _activeUse;
         private readonly Skill _skill;
-
-        public SkillListEntry(Label skillname, Label skillvaluebase, Label skillvalue, Label skillcap, Skill skill)
+        public SkillListEntry(Skill skill)
         {
             Height = 20;
-            Label skillName = skillname;
-            Label skillValueBase = skillvaluebase;
-            Label skillValue = skillvalue;
-            Label skillCap = skillcap;
+            Label skillName = new Label(skill.Name, true, 1153, font: 3);
+            Label skillValueBase = new Label(skill.Base.ToString(), true, 1153, font: 3);
+            Label skillValue = new Label(skill.Value.ToString(), true, 1153, font: 3);
+            Label skillCap = new Label(skill.Cap.ToString(), true, 1153, font: 3);
 
             _skill = skill;
             CanMove = !_skill.IsClickable;
@@ -459,13 +575,17 @@ namespace ClassicUO.Game.UI.Gumps
 
         protected override void OnDragBegin(int x, int y)
         {
-            if (_skill.IsClickable && Mouse.LButtonPressed && !SkillGumpAdvanced.Dragging)
+            if (_skill.IsClickable && Mouse.LButtonPressed && !SkillGumpAdvanced.Dragging && !Keyboard.Ctrl)
             {
                 GetSpellFloatingButton(_skill.Index)?.Dispose();
 
-                _ = GumpsLoader.Instance.GetGumpTexture(0x24B8, out var bounds);
+                ref readonly var gumpInfo = ref Client.Game.Gumps.GetGump(0x24B8);
 
-                SkillButtonGump skillButtonGump = new SkillButtonGump(_skill, Mouse.LClickPosition.X + (bounds.Width >> 1), Mouse.LClickPosition.Y + (bounds.Height >> 1));
+                SkillButtonGump skillButtonGump = new SkillButtonGump(
+                    _skill,
+                    Mouse.LClickPosition.X + (gumpInfo.UV.Width >> 1),
+                    Mouse.LClickPosition.Y + (gumpInfo.UV.Height >> 1)
+                );
 
                 UIManager.Add(skillButtonGump);
                 UIManager.AttemptDragControl(skillButtonGump, true);

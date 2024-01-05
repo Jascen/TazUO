@@ -2,7 +2,7 @@
 
 // Copyright (c) 2021, andreakarasho
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 // 1. Redistributions of source code must retain the above copyright
@@ -16,7 +16,7 @@
 // 4. Neither the name of the copyright holder nor the
 //    names of its contributors may be used to endorse or promote products
 //    derived from this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -36,6 +36,7 @@ using ClassicUO.Renderer;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using ClassicUO.Game.Managers;
 
 namespace ClassicUO.Game.GameObjects
 {
@@ -56,7 +57,10 @@ namespace ClassicUO.Game.GameObjects
             {
                 hue = Constants.HIGHLIGHT_CURRENT_OBJECT_HUE;
             }
-            else if (ProfileManager.CurrentProfile.NoColorObjectsOutOfRange && Distance > World.ClientViewRange)
+            else if (
+                ProfileManager.CurrentProfile.NoColorObjectsOutOfRange
+                && Distance > World.ClientViewRange
+            )
             {
                 hue = Constants.OUT_RANGE_COLOR;
             }
@@ -64,17 +68,38 @@ namespace ClassicUO.Game.GameObjects
             {
                 hue = Constants.DEAD_RANGE_COLOR;
             }
+            else
+            {
+                if (SelectedObject.Object == this)
+                {
+                    SpellVisualRangeManager.Instance.LastCursorTileLoc = new Vector2(X, Y);
+                }
+                if (SpellVisualRangeManager.Instance.IsTargetingAfterCasting())
+                {
+                    hue = SpellVisualRangeManager.Instance.ProcessHueForTile(hue, this);
+                }
+
+                if (TileMarkerManager.Instance.IsTileMarked(X, Y, World.Map.Index, out var nhue))
+                    hue = nhue;
+
+                if (ProfileManager.CurrentProfile.DisplayRadius && Distance == ProfileManager.CurrentProfile.DisplayRadiusDistance)
+                    hue = ProfileManager.CurrentProfile.DisplayRadiusHue;
+            }
 
             Vector3 hueVec;
             if (hue != 0)
             {
                 hueVec.X = hue - 1;
-                hueVec.Y = IsStretched ? ShaderHueTranslator.SHADER_LAND_HUED : ShaderHueTranslator.SHADER_HUED;
+                hueVec.Y = IsStretched
+                    ? ShaderHueTranslator.SHADER_LAND_HUED
+                    : ShaderHueTranslator.SHADER_HUED;
             }
             else
             {
                 hueVec.X = 0;
-                hueVec.Y = IsStretched ? ShaderHueTranslator.SHADER_LAND : ShaderHueTranslator.SHADER_NONE;
+                hueVec.Y = IsStretched
+                    ? ShaderHueTranslator.SHADER_LAND
+                    : ShaderHueTranslator.SHADER_NONE;
             }
             hueVec.Z = 1f;
 
@@ -82,15 +107,16 @@ namespace ClassicUO.Game.GameObjects
             {
                 posY += Z << 2;
 
-                var texture = TexmapsLoader.Instance.GetLandTexture(TileDataLoader.Instance.LandData[Graphic].TexID, out var bounds);
+                ref readonly var texmapInfo = ref Client.Game.Texmaps.GetTexmap(
+                    TileDataLoader.Instance.LandData[Graphic].TexID
+                );
 
-                if (texture != null)
+                if (texmapInfo.Texture != null)
                 {
-                    batcher.DrawStretchedLand
-                    (
-                        texture,
+                    batcher.DrawStretchedLand(
+                        texmapInfo.Texture,
                         new Vector2(posX, posY),
-                        bounds,
+                        texmapInfo.UV,
                         ref YOffsets,
                         ref NormalTop,
                         ref NormalRight,
@@ -102,8 +128,7 @@ namespace ClassicUO.Game.GameObjects
                 }
                 else
                 {
-                    DrawStatic
-                    (
+                    DrawStatic(
                         batcher,
                         Graphic,
                         posX,
@@ -116,20 +141,23 @@ namespace ClassicUO.Game.GameObjects
             }
             else
             {
-                var texture = ArtLoader.Instance.GetLandTexture(Graphic, out var bounds);
+                ref readonly var artInfo = ref Client.Game.Arts.GetLand(Graphic);
 
-                if (texture != null)
+                ref readonly var texmapInfo = ref Client.Game.Texmaps.GetTexmap(
+                    TileDataLoader.Instance.LandData[Graphic].TexID
+                );
+
+                if (artInfo.Texture != null)
                 {
                     var pos = new Vector2(posX, posY);
                     var scale = Vector2.One;
 
                     if (ProfileManager.CurrentProfile.AnimatedWaterEffect && TileData.IsWet)
                     {
-                        batcher.Draw
-                        (
-                            texture,
+                        batcher.Draw(
+                            artInfo.Texture,
                             pos,
-                            bounds,
+                            artInfo.UV,
                             hueVec,
                             0f,
                             Vector2.Zero,
@@ -143,18 +171,33 @@ namespace ClassicUO.Game.GameObjects
                         scale = new Vector2(1.1f + sin * 0.1f, 1.1f + cos * 0.5f * 0.1f);
                     }
 
-                    batcher.Draw
-                    (
-                        texture,
-                        pos,
-                        bounds,
-                        hueVec,
-                        0f,
-                        Vector2.Zero,
-                        scale,
-                        SpriteEffects.None,
-                        depth + 0.5f
-                    );
+                    if (texmapInfo.Texture != null && ProfileManager.CurrentProfile.UseLandTextures)
+                    {
+                        batcher.Draw(
+                            texmapInfo.Texture,
+                            new Rectangle(posX, posY, artInfo.UV.Width, artInfo.UV.Height),
+                            texmapInfo.UV,
+                            hueVec,
+                            0f,
+                            Vector2.Zero,
+                            SpriteEffects.None,
+                            depth + 0.5f
+                        );
+                    }
+                    else
+                    {
+                        batcher.Draw(
+                            artInfo.Texture,
+                            pos,
+                            artInfo.UV,
+                            hueVec,
+                            0f,
+                            Vector2.Zero,
+                            scale,
+                            SpriteEffects.None,
+                            depth + 0.5f
+                        );
+                    }
                 }
             }
 
@@ -165,7 +208,11 @@ namespace ClassicUO.Game.GameObjects
         {
             if (IsStretched)
             {
-                return SelectedObject.IsPointInStretchedLand(ref YOffsets, RealScreenPosition.X, RealScreenPosition.Y + (Z << 2));
+                return SelectedObject.IsPointInStretchedLand(
+                    ref YOffsets,
+                    RealScreenPosition.X,
+                    RealScreenPosition.Y + (Z << 2)
+                );
             }
 
             return SelectedObject.IsPointInLand(RealScreenPosition.X, RealScreenPosition.Y);

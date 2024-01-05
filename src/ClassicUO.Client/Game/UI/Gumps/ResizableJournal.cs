@@ -8,12 +8,16 @@ using ClassicUO.Utility.Collections;
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using ClassicUO.Game.GameObjects;
+using System.Linq;
 
 namespace ClassicUO.Game.UI.Gumps
 {
     internal class ResizableJournal : ResizableGump
     {
         #region VARS
+        public static bool ReloadTabs { get; set; } = false;
+
         private static int BORDER_WIDTH = 4;
         private static int MIN_WIDTH = (BORDER_WIDTH * 2) + (TAB_WIDTH * 4);
         private const int MIN_HEIGHT = 100;
@@ -36,10 +40,8 @@ namespace ClassicUO.Game.UI.Gumps
         private AlphaBlendControl _background;
         private JournalEntriesContainer _journalArea;
         private ScrollBar _scrollBarBase;
+        private NiceButton _newTabButton;
         #endregion
-
-        public static bool HasReceivedChatSystemMessage { get; set; } = false;
-        private bool _hasReceivedChatSystemMessage = HasReceivedChatSystemMessage;
 
         #region OTHER
         private static int _lastX = 100, _lastY = 100;
@@ -50,9 +52,11 @@ namespace ClassicUO.Game.UI.Gumps
         {
             AnchorType = ANCHOR_TYPE.NONE;
             CanMove = true;
+            _prevCanMove = true;
             AcceptMouseInput = true;
             WantUpdateSize = true;
             CanCloseWithRightClick = true;
+            _prevCloseWithRightClick = true;
             if (ProfileManager.CurrentProfile != null)
             {
                 _lastX = ProfileManager.CurrentProfile.JournalPosition.X;
@@ -79,22 +83,6 @@ namespace ClassicUO.Game.UI.Gumps
             _backgroundTexture = new GumpPicTiled(0);
             #endregion
 
-            #region Tab area
-            AddTab("All", new MessageType[] {
-                MessageType.Alliance, MessageType.Command, MessageType.Emote,
-                MessageType.Encoded, MessageType.Focus, MessageType.Guild,
-                MessageType.Label, MessageType.Limit3Spell, MessageType.Party,
-                MessageType.Regular, MessageType.Spell, MessageType.System,
-                MessageType.Whisper, MessageType.Yell, MessageType.ChatSystem
-            });
-            AddTab("Chat", new MessageType[] { MessageType.Regular, MessageType.Guild, MessageType.Alliance, MessageType.Emote, MessageType.Party, MessageType.Whisper, MessageType.Yell, MessageType.ChatSystem });
-            AddTab("Guild|Party", new MessageType[] { MessageType.Guild, MessageType.Alliance, MessageType.Party });
-            AddTab("System", new MessageType[] { MessageType.System });
-            if (HasReceivedChatSystemMessage)
-                AddTab("Global Chat", new MessageType[] { MessageType.ChatSystem });
-            _tab[0].IsSelected = true;
-            #endregion
-
             #region Journal Area
             _scrollBarBase = new ScrollBar(
                 Width - SCROLL_BAR_WIDTH - BORDER_WIDTH,
@@ -117,13 +105,36 @@ namespace ClassicUO.Game.UI.Gumps
             Add(_scrollBarBase);
 
             Add(_journalArea);
-            for (int i = 0; i < _tab.Count; i++)
-                Add(_tab[i]);
+
+            Add(_newTabButton = new NiceButton(0, 0, 20, TAB_HEIGHT, ButtonAction.Activate, "+") { IsSelectable = false });
+            _newTabButton.SetTooltip("Add a new tab");
+            _newTabButton.MouseUp += (s, e) =>
+            {
+                if (e.Button == MouseButtonType.Left)
+                {
+                    UIManager.Add(new InputRequest("Enter a tab name", "Save", "Cancel", (r, entry) =>
+                    {
+                        if (r == InputRequest.Result.BUTTON1 && !string.IsNullOrEmpty(entry))
+                        {
+                            ProfileManager.CurrentProfile.JournalTabs.Add(entry, new MessageType[] { MessageType.Regular });
+                            ResizableJournal.ReloadTabs = true;
+                        }
+                    })
+                    { X = X, Y = Y });
+                }
+            };
+
+            BuildTabs();
 
             InitJournalEntries();
             ResizeWindow(ProfileManager.CurrentProfile.ResizeJournalSize);
             BuildBorder();
-            World.Journal.EntryAdded += (sender, e) => { AddJournalEntry(e); };
+            EventSink.JournalEntryAdded += EventSink_EntryAdded; ;
+        }
+
+        private void EventSink_EntryAdded(object sender, JournalEntry e)
+        {
+            AddJournalEntry(e);
         }
 
         public override GumpType GumpType => GumpType.Journal;
@@ -140,6 +151,33 @@ namespace ClassicUO.Game.UI.Gumps
             Style7,
             Style8,
             //Style9
+        }
+
+        private void BuildTabs()
+        {
+            foreach (var tab in _tab)
+            {
+                tab.Dispose();
+            }
+
+            _tab.Clear();
+            _tabName.Clear();
+            _tabTypes.Clear();
+
+            foreach (var tab in ProfileManager.CurrentProfile.JournalTabs)
+            {
+                AddTab(tab.Key, tab.Value);
+            }
+            if (ProfileManager.CurrentProfile.LastJournalTab < _tab.Count)
+            {
+                _tab[ProfileManager.CurrentProfile.LastJournalTab].IsSelected = true;
+                OnButtonClick(ProfileManager.CurrentProfile.LastJournalTab); //Simulate selecting a tab
+            }
+
+            for (int i = 0; i < _tab.Count; i++)
+                Add(_tab[i]);
+
+            _newTabButton.X = (_tab.Count * TAB_WIDTH) + 4;
         }
 
         public void BuildBorder()
@@ -170,7 +208,7 @@ namespace ClassicUO.Game.UI.Gumps
                     break;
                 case BorderStyle.Style8:
                     {
-                        if (Assets.GumpsLoader.Instance.GetGumpTexture(40303, out var bounds) != null)
+                        if (Client.Game.Gumps.GetGump(40303).Texture != null)
                             graphic = 40303;
                         else
                             graphic = 83;
@@ -260,6 +298,23 @@ namespace ClassicUO.Game.UI.Gumps
             ProfileManager.CurrentProfile.ResizeJournalSize = new Point(Width, Height);
         }
 
+        public void UpdateOptions()
+        {
+            _backgroundTexture.Alpha = (float)ProfileManager.CurrentProfile.JournalOpacity / 100;
+            BorderControl.Alpha = (float)ProfileManager.CurrentProfile.JournalOpacity / 100;
+            _background.Hue = ProfileManager.CurrentProfile.AltJournalBackgroundHue;
+
+            BuildBorder();
+        }
+
+        public static void UpdateJournalOptions()
+        {
+            foreach(ResizableJournal j in UIManager.Gumps.OfType<ResizableJournal>())
+            {
+                j.UpdateOptions();
+            }
+        }
+
         protected override void OnMouseWheel(MouseEventType delta)
         {
             base.OnMouseWheel(delta);
@@ -269,19 +324,35 @@ namespace ClassicUO.Game.UI.Gumps
 
         public override void OnButtonClick(int buttonID)
         {
-            if (_tab.Count >= buttonID)
+            if (_tab.Count > buttonID)
             {
                 _tab[buttonID].IsSelected = true;
                 _currentFilter = _tabTypes[buttonID];
                 _journalArea.CalculateScrollBarMaxValue();
                 _journalArea.Update();
                 _scrollBarBase.Value = _scrollBarBase.MaxValue;
+                ProfileManager.CurrentProfile.LastJournalTab = buttonID;
             }
         }
 
         private void AddTab(string Name, MessageType[] filters)
         {
-            _tab.Add(new NiceButton((_tab.Count * TAB_WIDTH) + 4, 0, TAB_WIDTH, TAB_HEIGHT, ButtonAction.Activate, Name, 1) { ButtonParameter = _tab.Count, IsSelectable = true });
+            NiceButton nb;
+            _tab.Add(nb = new NiceButton((_tab.Count * TAB_WIDTH) + 4, 0, TAB_WIDTH, TAB_HEIGHT, ButtonAction.Activate, Name, 1)
+            {
+                ButtonParameter = _tab.Count,
+                IsSelectable = true,
+                CanCloseWithRightClick = false,
+                ContextMenu = new TabContextEntry(Name)
+            });
+
+            nb.MouseUp += (sender, e) =>
+            {
+                if (e.Button == MouseButtonType.Right)
+                {
+                    nb.ContextMenu.Show();
+                }
+            };
             _tabName.Add(Name);
             _tabTypes.Add(filters);
         }
@@ -321,16 +392,19 @@ namespace ClassicUO.Game.UI.Gumps
             }
             if (((Width != _lastWidth || Height != _lastHeight) && !Mouse.LButtonPressed))
                 Reposition();
-            if (HasReceivedChatSystemMessage != _hasReceivedChatSystemMessage)
-            {
-                _hasReceivedChatSystemMessage = HasReceivedChatSystemMessage;
 
-                if (_hasReceivedChatSystemMessage)
-                {
-                    AddTab("Global Chat", new MessageType[] { MessageType.ChatSystem });
-                    Add(_tab[_tab.Count - 1]);
-                }
+            if (ReloadTabs)
+            {
+                ReloadTabs = false;
+
+                BuildTabs();
             }
+        }
+
+        public override void Dispose()
+        {
+            EventSink.JournalEntryAdded -= EventSink_EntryAdded;
+            base.Dispose();
         }
 
         private class JournalEntriesContainer : Control
@@ -349,6 +423,7 @@ namespace ClassicUO.Game.UI.Gumps
                 _scrollBar.IsVisible = false;
                 AcceptMouseInput = true;
                 CanMove = true;
+                
                 X = x;
                 Y = y;
                 Width = lastWidth = width;
@@ -375,7 +450,7 @@ namespace ClassicUO.Game.UI.Gumps
 
                         if (my + journalEntry.EntryText.Height - y >= _scrollBar.Value && my - y <= _scrollBar.Value + _scrollBar.Height)
                         {
-                            if(!hideTimestamp)
+                            if (!hideTimestamp)
                                 journalEntry.TimeStamp.Draw(batcher, x, my - _scrollBar.Value);
                             journalEntry.EntryText.Draw(batcher, hideTimestamp ? x : x + (journalEntry.TimeStamp.Width + 5), my - _scrollBar.Value);
                         }
@@ -527,6 +602,132 @@ namespace ClassicUO.Game.UI.Gumps
                 public TextBox TimeStamp { get; }
                 public TextType TextType { get; }
                 public MessageType MessageType { get; }
+            }
+        }
+
+        private class TabContextEntry : ContextMenuControl
+        {
+            public TabContextEntry(string name)
+            {
+                if (ProfileManager.CurrentProfile.JournalTabs.ContainsKey(name))
+                {
+                    MessageType[] selectedTypes = ProfileManager.CurrentProfile.JournalTabs[name];
+
+                    foreach (MessageType item in Enum.GetValues(typeof(MessageType)))
+                    {
+                        string entryName = string.Empty;
+                        switch (item)
+                        {
+                            case MessageType.Regular:
+                                entryName = "Regular";
+                                break;
+                            case MessageType.System:
+                                entryName = "System";
+                                break;
+                            case MessageType.Emote:
+                                entryName = "Emote";
+                                break;
+                            case MessageType.Limit3Spell:
+                                entryName = "Limit3Spell(Sphere)";
+                                break;
+                            case MessageType.Label:
+                                entryName = "Label";
+                                break;
+                            case MessageType.Focus:
+                                entryName = "Focus";
+                                break;
+                            case MessageType.Whisper:
+                                entryName = "Whisper";
+                                break;
+                            case MessageType.Yell:
+                                entryName = "Yell";
+                                break;
+                            case MessageType.Spell:
+                                entryName = "Spell";
+                                break;
+                            case MessageType.Guild:
+                                entryName = "Guild";
+                                break;
+                            case MessageType.Alliance:
+                                entryName = "Alliance";
+                                break;
+                            case MessageType.Command:
+                                entryName = "Command";
+                                break;
+                            case MessageType.Encoded:
+                                entryName = "Encoded";
+                                break;
+                            case MessageType.ChatSystem:
+                                entryName = "Global Chat";
+                                break;
+                            case MessageType.Party:
+                                entryName = "Party";
+                                break;
+                        }
+
+                        Add(entryName,
+                            () =>
+                            {
+                                if (ProfileManager.CurrentProfile.JournalTabs.ContainsKey(name))
+                                {
+                                    MessageType[] selectedTypes = ProfileManager.CurrentProfile.JournalTabs[name];
+
+                                    if (selectedTypes.Contains(item))
+                                    {
+                                        ProfileManager.CurrentProfile.JournalTabs[name] = RemoveType(selectedTypes, item);
+                                        ResizableJournal.ReloadTabs = true;
+                                    }
+                                    else
+                                    {
+                                        ProfileManager.CurrentProfile.JournalTabs[name] = AddType(selectedTypes, item);
+                                        ResizableJournal.ReloadTabs = true;
+                                    }
+                                }
+                            },
+                            true,
+                            selectedTypes.Contains(item));
+                    }
+                }
+
+                Add("X Delete Tab", () =>
+                {
+                    UIManager.Add(new QuestionGump($"Delete [{name}] tab?", (yes) =>
+                    {
+                        if (yes)
+                        {
+                            if (ProfileManager.CurrentProfile.JournalTabs.ContainsKey(name))
+                            {
+                                ProfileManager.CurrentProfile.JournalTabs.Remove(name);
+                                ResizableJournal.ReloadTabs = true;
+                            }
+                        }
+                    }));
+                });
+            }
+
+            private static MessageType[] RemoveType(MessageType[] array, MessageType removeMe)
+            {
+                var modifiedList = new List<MessageType>();
+                foreach (var item in array)
+                {
+                    if (item != removeMe)
+                    {
+                        modifiedList.Add(item);
+                    }
+                }
+
+                return modifiedList.ToArray();
+            }
+
+            private static MessageType[] AddType(MessageType[] array, MessageType addMe)
+            {
+                var modifiedList = new List<MessageType>();
+
+                modifiedList.AddRange(array);
+
+                modifiedList.Add(addMe);
+
+                return modifiedList.ToArray();
             }
         }
     }
